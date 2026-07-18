@@ -1,0 +1,25 @@
+{
+    "recommendations": [
+        "anthropic.claude-code",
+        "ms-azuretools.vscode-containers",
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ritwickdey.liveserver",
+        "ms-python.vscode-python-envs",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "pkief.material-icon-theme",
+        "ms-vscode-remote.remote-containers",
+        "ms-vscode-remote.remote-ssh-edit",
+        "ms-vscode.remote-explorer",
+        "christian-kohler.path-intellisense",
+        "tomoki1207.pdf",
+        "yzhang.markdown-all-in-one",
+        "zainchen.json",
+        "mohsen1.prettify-json",
+        "percy.vscode-pydata-viewer",
+        "firefox-devtools.vscode-firefox-debug",
+        "davidanson.vscode-markdownlint",
+        "dbaeumer.vscode-eslint"
+    ]
+}
