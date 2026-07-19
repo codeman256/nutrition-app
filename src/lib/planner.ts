@@ -13,6 +13,8 @@ import {
 } from "@/data/nutrients";
 import { getDri, type DriQuery } from "@/data/dri";
 
+export type { DriQuery } from "@/data/dri";
+
 /* ------------------------------------------------------------------ */
 /* Units                                                               */
 /* ------------------------------------------------------------------ */
