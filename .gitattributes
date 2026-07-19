@@ -1,0 +1,2 @@
+# shell scripts must stay LF or they break inside the container
+*.sh text eol=lf

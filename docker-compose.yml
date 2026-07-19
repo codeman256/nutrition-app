@@ -16,4 +16,7 @@ services:
       TRUSTED_ORIGINS: ""
       # set to "true" only when served exclusively over HTTPS
       USE_SECURE_COOKIES: "false"
+      # file ownership for /data (defaults match unraid's nobody:users)
+      PUID: "99"
+      PGID: "100"
     restart: unless-stopped

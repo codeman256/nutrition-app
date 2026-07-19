@@ -26,9 +26,12 @@ COPY --from=builder /app/public ./public
 # drizzle migrations run automatically on first database open
 COPY --from=builder /app/drizzle ./drizzle
 
-RUN mkdir -p /data && chown -R node:node /data /app
-USER node
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh && mkdir -p /data && chown -R node:node /data /app
+
+# starts as root to fix /data ownership on bind mounts, then drops to `node`
 VOLUME /data
 EXPOSE 3005
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

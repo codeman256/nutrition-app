@@ -38,8 +38,11 @@ stays on your server.
 1. Docker tab → **Add Container** → paste the template URL:
    `https://raw.githubusercontent.com/codeman256/nutrition-app/main/unraid.xml`
    (or add it via Community Applications once published there).
-2. Set **Auth Secret** to a long random string (`openssl rand -base64 32`).
-3. Apply. The web UI is at `http://SERVER-IP:3005`.
+2. Optionally set **Auth Secret** to a long random string
+   (`openssl rand -base64 32`) — left blank, one is generated automatically
+   and stored in the Data folder.
+3. Apply. The web UI is at `http://SERVER-IP:3005` (or whatever host port you
+   mapped). Ownership of the Data folder is fixed automatically on startup.
 
 Updates: the image is rebuilt on every push to `main` and published to
 `ghcr.io/codeman256/nutrition-app:latest`. unraid's Docker tab shows when an
