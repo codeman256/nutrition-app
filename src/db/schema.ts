@@ -136,6 +136,33 @@ export const productIngredients = sqliteTable(
   (t) => [index("product_ingredients_product_id_idx").on(t.productId)],
 );
 
+/**
+ * Local copy of Health Canada's LNHPD product-licence list. Their API has no
+ * search/filter parameters — the only options are single-record fetch by
+ * internal id or the full 300k-row dump — so we sync the dump once into this
+ * table and search it locally.
+ */
+export const lnhpdIndex = sqliteTable(
+  "lnhpd_index",
+  {
+    lnhpdId: integer("lnhpd_id").primaryKey(),
+    licenceNumber: text("licence_number").notNull(),
+    productName: text("product_name").notNull(),
+    companyName: text("company_name"),
+    dosageForm: text("dosage_form"),
+  },
+  (t) => [
+    index("lnhpd_index_licence_idx").on(t.licenceNumber),
+    index("lnhpd_index_name_idx").on(t.productName),
+  ],
+);
+
+export const lnhpdSyncState = sqliteTable("lnhpd_sync_state", {
+  id: integer("id").primaryKey(), // single row, id = 1
+  syncedAt: integer("synced_at", { mode: "timestamp" }),
+  recordCount: integer("record_count"),
+});
+
 export const regimenItems = sqliteTable(
   "regimen_items",
   {
