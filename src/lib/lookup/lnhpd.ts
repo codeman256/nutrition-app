@@ -12,7 +12,7 @@ import { Readable } from "node:stream";
 import { chain } from "stream-chain";
 import { parser } from "stream-json";
 import { streamArray } from "stream-json/streamers/stream-array.js";
-import { like, or, sql } from "drizzle-orm";
+import { and, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { lnhpdIndex, lnhpdSyncState } from "@/db/schema";
 import { matchNutrient } from "@/data/nutrients";
@@ -103,15 +103,22 @@ export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[
   const digits = trimmed.replace(/\D/g, "");
   const isNpn = digits.length >= 6 && digits.length === trimmed.length;
 
+  // every word must appear in the product name or the company name
+  // ("jamieson vitamin d" → brand in company_name, rest in product_name)
+  const terms = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
   const rows = await db
     .select()
     .from(lnhpdIndex)
     .where(
       isNpn
         ? like(lnhpdIndex.licenceNumber, `${digits}%`)
-        : or(
-            like(sql`lower(${lnhpdIndex.productName})`, `%${trimmed.toLowerCase()}%`),
-            like(lnhpdIndex.licenceNumber, `${digits || trimmed}%`),
+        : and(
+            ...terms.map((term) =>
+              or(
+                like(sql`lower(${lnhpdIndex.productName})`, `%${term}%`),
+                like(sql`lower(${lnhpdIndex.companyName})`, `%${term}%`),
+              ),
+            ),
           ),
     )
     .limit(limit);
@@ -147,11 +154,16 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   const body = (await res.json()) as { data?: LnhpdIngredient[] };
 
   const ingredients: IngredientDraft[] = [];
+  const seen = new Set<string>();
   for (const ing of body.data ?? []) {
     const name = ing.ingredient_name ?? "";
     if (!name || typeof ing.quantity !== "number" || ing.quantity <= 0) continue;
     const unit = ing.quantity_unit_of_measure ?? "";
     if (parseUnit(unit) === null) continue;
+    // the API repeats an ingredient once per potency constituent
+    const key = `${name.toLowerCase()}|${ing.quantity}|${unit.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     ingredients.push({
       label: name,
       nutrientId: matchNutrient(name)?.id ?? null,
