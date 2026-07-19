@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VitaPlan
 
-## Getting Started
+Self-hosted daily vitamin & supplement planner. Add the bottles you actually
+own, build a weekly schedule, and see — in one spreadsheet-style view — what
+every product contributes to your day against the recommended amounts (RDA/AI)
+and tolerable upper limits (UL) for your age, sex, and life stage.
 
-First, run the development server:
+Runs as a single Docker container (made for unraid, works anywhere). All data
+stays on your server.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **Add products four ways**
+  - **Barcode** — camera scan or typed UPC, looked up in the
+    [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (full
+    ingredient amounts) with [Open Food Facts](https://world.openfoodfacts.org/)
+    as fallback
+  - **Search** — by product name, or by **NPN licence number** for Canadian
+    bottles via a locally-synced copy of
+    [Health Canada's LNHPD](https://health-products.canada.ca/lnhpd-bdpsnh/index-eng.jsp)
+  - **Label photo** — OCR runs *in your browser* (tesseract.js); the photo
+    never leaves your device, and the result prefills an editable form
+  - **Manual** — type it in; ingredient names auto-match to tracked nutrients
+- **Weekly regimen** — servings per day and which weekdays for each product
+  (vitamin D daily, B-complex Mon/Wed/Fri, …)
+- **Dashboard** — nutrient × product grid per weekday with totals, % of
+  target, % of upper limit, status icons, over-limit warnings, CSV export
+- **What-if** — pick any product and instantly see whether adding it would
+  push anything past its safe limit
+- **Profiles** — the same inputs as the USDA DRI calculator (age, sex,
+  height/weight in ft-in/lbs or metric, activity, pregnancy/lactation), with
+  BMI and estimated calories; reference values from NIH/NASEM tables
+- **Multi-user** with email/password login; first-run consent screen;
+  mobile-first PWA (installable, bottom-tab navigation); WCAG 2.2 AA targeted
+
+## Install on unraid
+
+1. Docker tab → **Add Container** → paste the template URL:
+   `https://raw.githubusercontent.com/codeman256/nutrition-app/main/unraid.xml`
+   (or add it via Community Applications once published there).
+2. Set **Auth Secret** to a long random string (`openssl rand -base64 32`).
+3. Apply. The web UI is at `http://SERVER-IP:3005`.
+
+Updates: the image is rebuilt on every push to `main` and published to
+`ghcr.io/codeman256/nutrition-app:latest`. unraid's Docker tab shows when an
+update is available (one click), and the *Auto Update Applications* plugin can
+apply them automatically.
+
+### Camera scanning needs HTTPS
+
+Browsers only allow camera access on secure origins. Typed barcode entry,
+photos, and everything else work fine over plain HTTP on your LAN, but to use
+the **camera** scanner from your phone you need HTTPS — the easiest routes are
+[Tailscale](https://tailscale.com/) (`tailscale serve` gives you a valid HTTPS
+URL for free) or a reverse proxy with a certificate (Nginx Proxy Manager,
+Caddy, Traefik). Add the HTTPS origin to **Trusted Origins** in the template.
+
+## Docker Compose
+
+```yaml
+services:
+  vitaplan:
+    image: ghcr.io/codeman256/nutrition-app:latest
+    ports:
+      - "3005:3005"
+    volumes:
+      - ./data:/data
+    environment:
+      BETTER_AUTH_SECRET: "change-me"   # openssl rand -base64 32
+    restart: unless-stopped
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+cp .env.example .env.local   # set BETTER_AUTH_SECRET
+npm run dev                  # http://localhost:3005
+npm test                     # planner engine unit tests
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Stack: Next.js 15 (App Router, TypeScript), SQLite via Drizzle ORM,
+better-auth, Tailwind 4 + shadcn/ui, tesseract.js, @zxing/browser.
+Migrations run automatically on startup; data lives in `./data` (or the
+`/data` volume in Docker).
 
-## Learn More
+## Data sources
 
-To learn more about Next.js, take a look at the following resources:
+- NIH Office of Dietary Supplements — [DSLD](https://dsld.od.nih.gov/) labels
+  and [DRI tables](https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx)
+- Health Canada — [LNHPD](https://health-products.canada.ca/api/documentation/lnhpd-documentation-en.html)
+  licensed natural health products
+- [Open Food Facts](https://world.openfoodfacts.org/) (ODbL)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Disclaimer
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+VitaPlan is an informational planning tool, not medical advice. Reference
+values are population-level guidelines that don't account for your medical
+history, medications, or lab results. Talk to a healthcare professional before
+changing your supplement routine.
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[AGPL-3.0](LICENSE)

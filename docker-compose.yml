@@ -1,0 +1,19 @@
+services:
+  vitaplan:
+    image: ghcr.io/codeman256/nutrition-app:latest
+    # or build locally:
+    # build: .
+    container_name: vitaplan
+    ports:
+      - "3005:3005"
+    volumes:
+      - ./data:/data
+    environment:
+      # generate one with: openssl rand -base64 32
+      BETTER_AUTH_SECRET: "change-me-to-a-long-random-string"
+      # extra origins allowed to reach the auth API, comma-separated,
+      # e.g. https://vitaplan.example.com,http://192.168.1.50:3005
+      TRUSTED_ORIGINS: ""
+      # set to "true" only when served exclusively over HTTPS
+      USE_SECURE_COOKIES: "false"
+    restart: unless-stopped

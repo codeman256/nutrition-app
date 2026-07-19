@@ -17,6 +17,11 @@ export const auth = betterAuth({
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
+  advanced: {
+    // Secure-only cookies break login on plain-HTTP LAN deployments (the
+    // normal unraid setup). Opt in via USE_SECURE_COOKIES=true behind HTTPS.
+    useSecureCookies: process.env.USE_SECURE_COOKIES === "true",
+  },
   plugins: [nextCookies()],
 });
 

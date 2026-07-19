@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>VitaPlan</Name>
+  <Repository>ghcr.io/codeman256/nutrition-app:latest</Repository>
+  <Registry>https://ghcr.io/codeman256/nutrition-app</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/codeman256/nutrition-app/issues</Support>
+  <Project>https://github.com/codeman256/nutrition-app</Project>
+  <Overview>Self-hosted daily vitamin and supplement planner. Add the bottles you own by barcode, Health Canada NPN, label photo (local OCR), or manual entry, build a weekly schedule, and see a spreadsheet of what every product adds to your day against NIH/Health Canada recommended amounts and safe upper limits. Multi-user with login; all data stays in this container.</Overview>
+  <Category>Tools: HomeAutomation: MediaApp:Other Status:Stable</Category>
+  <WebUI>http://[IP]:[PORT:3005]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/codeman256/nutrition-app/main/unraid.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/codeman256/nutrition-app/main/public/icon-192.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <DonateText/>
+  <DonateLink/>
+  <Description>Self-hosted daily vitamin and supplement planner with barcode/NPN/OCR product import, weekly schedules, and RDA/upper-limit tracking.</Description>
+  <Config Name="WebUI Port" Target="3005" Default="3005" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">3005</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/vitaplan" Mode="rw" Description="Database and uploaded photos." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/vitaplan</Config>
+  <Config Name="Auth Secret" Target="BETTER_AUTH_SECRET" Default="" Mode="" Description="Long random string used to sign login sessions. Generate one with: openssl rand -base64 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Trusted Origins" Target="TRUSTED_ORIGINS" Default="" Mode="" Description="Optional. Comma-separated extra origins allowed to reach the auth API, e.g. https://vitaplan.example.com" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Secure Cookies" Target="USE_SECURE_COOKIES" Default="false" Mode="" Description="Set to true only when VitaPlan is served exclusively over HTTPS (e.g. behind a reverse proxy with a certificate)." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>

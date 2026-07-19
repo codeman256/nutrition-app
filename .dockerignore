@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+data
+*.md
+.env*
+.vscode
+.claude
+Dockerfile
+docker-compose.yml
+unraid.xml
