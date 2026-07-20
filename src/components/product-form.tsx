@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, Info, Check } from "lucide-react";
@@ -33,6 +33,11 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const [name, setName] = useState(draft.name);
+  // The current name always appears in the picker, even after a manual edit.
+  const nameOptions = useMemo(() => {
+    const options = draft.nameOptions ?? [];
+    return options.includes(name) ? options : [name, ...options];
+  }, [draft.nameOptions, name]);
   const [brand, setBrand] = useState(draft.brand ?? "");
   const [servingSize, setServingSize] = useState(draft.servingSize ?? "");
   const [ingredients, setIngredients] = useState<IngredientDraft[]>(
@@ -114,6 +119,26 @@ export function ProductForm({
           <div className="flex flex-col gap-2">
             <Label htmlFor="p-name">Product name</Label>
             <Input id="p-name" required value={name} onChange={(e) => setName(e.target.value)} />
+            {nameOptions.length > 1 && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="p-name-alt" className="text-xs font-normal text-muted-foreground">
+                  This licence covers {nameOptions.length} names — pick the one
+                  on your bottle, or edit the field above.
+                </Label>
+                <Select value={name} onValueChange={setName}>
+                  <SelectTrigger id="p-name-alt" className="w-full">
+                    <SelectValue placeholder="Choose a name…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nameOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2">

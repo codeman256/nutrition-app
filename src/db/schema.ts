@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+  primaryKey,
+} from "drizzle-orm/sqlite-core";
 
 /* ------------------------------------------------------------------ */
 /* better-auth tables                                                  */
@@ -143,18 +150,41 @@ export const productIngredients = sqliteTable(
  * internal id or the full 300k-row dump — so we sync the dump once into this
  * table and search it locally.
  */
+/**
+ * One row per *product name*, not per licence: Health Canada's dump lists every
+ * marketed name for a licence (flavours, alternate brandings) as its own row
+ * sharing one `lnhpd_id`. Keying on `lnhpd_id` alone dropped ~136k names, so
+ * the key is the pair. Every field the dump gives us is kept.
+ */
 export const lnhpdIndex = sqliteTable(
   "lnhpd_index",
   {
-    lnhpdId: integer("lnhpd_id").primaryKey(),
+    lnhpdId: integer("lnhpd_id").notNull(),
+    productNameId: integer("product_name_id").notNull(),
     licenceNumber: text("licence_number").notNull(),
     productName: text("product_name").notNull(),
     companyName: text("company_name"),
+    companyId: integer("company_id"),
+    companyNameId: integer("company_name_id"),
     dosageForm: text("dosage_form"),
+    // ISO date strings exactly as the dump provides them
+    licenceDate: text("licence_date"),
+    revisedDate: text("revised_date"),
+    timeReceipt: text("time_receipt"),
+    dateStart: text("date_start"),
+    subSubmissionTypeCode: integer("sub_submission_type_code"),
+    subSubmissionTypeDesc: text("sub_submission_type_desc"),
+    // 1 when this is the licence's primary name
+    flagPrimaryName: integer("flag_primary_name"),
+    // 1 = active licence; 0/2/4 = cancelled, expired, etc.
+    flagProductStatus: integer("flag_product_status"),
+    flagAttestedMonograph: integer("flag_attested_monograph"),
   },
   (t) => [
+    primaryKey({ columns: [t.lnhpdId, t.productNameId] }),
     index("lnhpd_index_licence_idx").on(t.licenceNumber),
     index("lnhpd_index_name_idx").on(t.productName),
+    index("lnhpd_index_lnhpd_id_idx").on(t.lnhpdId),
   ],
 );
 

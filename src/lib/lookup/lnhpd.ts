@@ -12,7 +12,7 @@ import { Readable } from "node:stream";
 import { chain } from "stream-chain";
 import { parser } from "stream-json";
 import { streamArray } from "stream-json/streamers/stream-array.js";
-import { and, like, or, sql } from "drizzle-orm";
+import { and, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { lnhpdIndex, lnhpdSyncState } from "@/db/schema";
 import { matchNutrient } from "@/data/nutrients";
@@ -21,14 +21,25 @@ import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
 const BASE = "https://health-products.canada.ca/api/natural-licences";
 
+/** One row of the product-licence dump — every field it gives us. */
 interface LnhpdLicenceRecord {
   lnhpd_id?: number;
+  product_name_id?: number;
   licence_number?: string;
   product_name?: string;
   company_name?: string;
+  company_id?: number;
+  company_name_id?: number;
   dosage_form?: string;
+  licence_date?: string;
+  revised_date?: string;
+  time_receipt?: string;
+  date_start?: string;
+  sub_submission_type_code?: number;
+  sub_submission_type_desc?: string;
   flag_primary_name?: number;
   flag_product_status?: number;
+  flag_attested_monograph?: number;
 }
 
 export async function getLnhpdSyncState() {
@@ -154,15 +165,35 @@ export async function syncLnhpdIndex(
 
   for await (const item of pipeline) {
     const record = (item as { value: LnhpdLicenceRecord }).value;
-    if (!record.lnhpd_id || !record.licence_number || !record.product_name) continue;
-    // keep only primary names of active licences to avoid duplicate rows
-    if (record.flag_primary_name === 0 && record.flag_product_status !== 1) continue;
+    if (
+      !record.lnhpd_id ||
+      !record.product_name_id ||
+      !record.licence_number ||
+      !record.product_name
+    ) {
+      continue;
+    }
+    // Every name is kept — a licence's flavour/alternate names are exactly what
+    // people read off their bottle. Status and primary flags are stored rather
+    // than filtered on, so search can rank and label them.
     batch.push({
       lnhpdId: record.lnhpd_id,
+      productNameId: record.product_name_id,
       licenceNumber: record.licence_number,
       productName: record.product_name,
       companyName: record.company_name ?? null,
+      companyId: record.company_id ?? null,
+      companyNameId: record.company_name_id ?? null,
       dosageForm: record.dosage_form ?? null,
+      licenceDate: record.licence_date ?? null,
+      revisedDate: record.revised_date ?? null,
+      timeReceipt: record.time_receipt ?? null,
+      dateStart: record.date_start ?? null,
+      subSubmissionTypeCode: record.sub_submission_type_code ?? null,
+      subSubmissionTypeDesc: record.sub_submission_type_desc ?? null,
+      flagPrimaryName: record.flag_primary_name ?? null,
+      flagProductStatus: record.flag_product_status ?? null,
+      flagAttestedMonograph: record.flag_attested_monograph ?? null,
     });
     count++;
     if (batch.length >= 2000) {
@@ -173,18 +204,59 @@ export async function syncLnhpdIndex(
   await flush();
   onProgress?.(count);
 
+  // Report what actually landed, not what streamed past: a handful of rows
+  // repeat the same (lnhpd_id, product_name_id) pair and are dropped.
+  const stored = await db.select({ n: sql<number>`count(*)` }).from(lnhpdIndex);
+  const recordCount = stored[0]?.n ?? count;
+
   await db
     .insert(lnhpdSyncState)
-    .values({ id: 1, syncedAt: new Date(), recordCount: count })
+    .values({ id: 1, syncedAt: new Date(), recordCount })
     .onConflictDoUpdate({
       target: lnhpdSyncState.id,
-      set: { syncedAt: new Date(), recordCount: count },
+      set: { syncedAt: new Date(), recordCount },
     });
 
-  return { recordCount: count };
+  return { recordCount };
 }
 
-/** Search the local index by NPN licence number or product name. */
+/**
+ * Order a licence's names for display: primary name first, then alphabetical.
+ * Any name matching the user's search is hoisted to the front so the result
+ * shows the wording they actually typed.
+ */
+function orderNames(
+  rows: (typeof lnhpdIndex.$inferSelect)[],
+  terms: string[],
+): string[] {
+  const matches = (name: string) =>
+    terms.length > 0 && terms.every((t) => name.toLowerCase().includes(t));
+  const seen = new Set<string>();
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const am = matches(a.productName) ? 1 : 0;
+      const bm = matches(b.productName) ? 1 : 0;
+      if (am !== bm) return bm - am;
+      const ap = a.flagPrimaryName === 1 ? 1 : 0;
+      const bp = b.flagPrimaryName === 1 ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return a.productName.localeCompare(b.productName);
+    })
+    .map((r) => r.productName)
+    .filter((name) => {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/**
+ * Search the local index by NPN licence number or product name.
+ * Results are grouped by licence: a licence sold under several names is one
+ * hit carrying all of them, so the user can pick the wording on their bottle.
+ */
 export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[]> {
   const trimmed = query.trim();
   const digits = trimmed.replace(/\D/g, "");
@@ -193,30 +265,68 @@ export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[
   // every word must appear in the product name or the company name
   // ("jamieson vitamin d" → brand in company_name, rest in product_name)
   const terms = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+
+  // A one- or two-letter term has to start a word, so the "d" in "vitamin d"
+  // matches "Vitamin D3" but not the "d" inside "Jamieson Laboratories Ltd.".
+  // Longer terms stay plain substring matches.
+  const termMatches = (term: string) =>
+    term.length <= 2
+      ? or(
+          like(sql`' ' || lower(${lnhpdIndex.productName})`, `% ${term}%`),
+          like(sql`' ' || lower(${lnhpdIndex.companyName})`, `% ${term}%`),
+        )
+      : or(
+          like(sql`lower(${lnhpdIndex.productName})`, `%${term}%`),
+          like(sql`lower(${lnhpdIndex.companyName})`, `%${term}%`),
+        );
+
+  const where = isNpn
+    ? like(lnhpdIndex.licenceNumber, `${digits}%`)
+    : and(...terms.map(termMatches));
+
+  // Which licences matched — active ones first, so a cancelled licence never
+  // crowds out a product still on the shelf.
+  const matched = await db
+    .select({ lnhpdId: lnhpdIndex.lnhpdId })
+    .from(lnhpdIndex)
+    .where(where)
+    .groupBy(lnhpdIndex.lnhpdId)
+    .orderBy(sql`max(${lnhpdIndex.flagProductStatus} = 1) desc`)
+    .limit(limit);
+
+  const ids = matched.map((m) => m.lnhpdId);
+  if (ids.length === 0) return [];
+
+  // Pull every name row for those licences, not just the ones that matched.
   const rows = await db
     .select()
     .from(lnhpdIndex)
-    .where(
-      isNpn
-        ? like(lnhpdIndex.licenceNumber, `${digits}%`)
-        : and(
-            ...terms.map((term) =>
-              or(
-                like(sql`lower(${lnhpdIndex.productName})`, `%${term}%`),
-                like(sql`lower(${lnhpdIndex.companyName})`, `%${term}%`),
-              ),
-            ),
-          ),
-    )
-    .limit(limit);
+    .where(inArray(lnhpdIndex.lnhpdId, ids));
 
-  return rows.map((row) => ({
-    source: "lnhpd",
-    sourceId: String(row.lnhpdId),
-    name: row.productName,
-    brand: row.companyName,
-    npn: row.licenceNumber,
-  }));
+  const byLicence = new Map<number, (typeof lnhpdIndex.$inferSelect)[]>();
+  for (const row of rows) {
+    const list = byLicence.get(row.lnhpdId) ?? [];
+    list.push(row);
+    byLicence.set(row.lnhpdId, list);
+  }
+
+  return ids.flatMap((id) => {
+    const group = byLicence.get(id);
+    if (!group || group.length === 0) return [];
+    const names = orderNames(group, terms);
+    const head = group[0];
+    return [
+      {
+        source: "lnhpd" as const,
+        sourceId: String(id),
+        name: names[0] ?? head.productName,
+        names,
+        brand: head.companyName,
+        npn: head.licenceNumber,
+        discontinued: !group.some((r) => r.flagProductStatus === 1),
+      },
+    ];
+  });
 }
 
 interface LnhpdIngredient {
@@ -226,11 +336,12 @@ interface LnhpdIngredient {
 }
 
 export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
+  // All name rows for this licence, so the user can pick the one on their bottle.
   const indexRows = await db
     .select()
     .from(lnhpdIndex)
-    .where(sql`${lnhpdIndex.lnhpdId} = ${Number(lnhpdId)}`)
-    .limit(1);
+    .where(sql`${lnhpdIndex.lnhpdId} = ${Number(lnhpdId)}`);
+  const nameOptions = orderNames(indexRows, []);
   const indexed = indexRows[0];
 
   const res = await fetch(
@@ -261,7 +372,8 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   }
 
   return {
-    name: indexed?.productName ?? `LNHPD ${lnhpdId}`,
+    name: nameOptions[0] ?? indexed?.productName ?? `LNHPD ${lnhpdId}`,
+    nameOptions,
     brand: indexed?.companyName ?? null,
     npn: indexed?.licenceNumber ?? null,
     servingSize: indexed?.dosageForm ? `1 ${indexed.dosageForm}` : null,

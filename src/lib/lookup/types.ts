@@ -10,6 +10,12 @@ export interface IngredientDraft {
 
 export interface ProductDraft {
   name: string;
+  /**
+   * Every name the source lists for this product. One Health Canada licence
+   * often covers several marketed names (flavours, alternate brandings), so
+   * the user picks the one printed on their bottle.
+   */
+  nameOptions?: string[];
   brand?: string | null;
   upc?: string | null;
   npn?: string | null;
@@ -26,7 +32,11 @@ export interface SearchHit {
   /** DSLD label id or LNHPD lnhpd_id, as a string */
   sourceId: string;
   name: string;
+  /** all names this licence is sold under, best match first */
+  names?: string[];
   brand?: string | null;
   upc?: string | null;
   npn?: string | null;
+  /** true when no name on the licence is currently active */
+  discontinued?: boolean;
 }

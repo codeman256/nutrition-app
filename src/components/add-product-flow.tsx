@@ -313,10 +313,19 @@ function SearchTab({
                     hit.brand,
                     hit.npn ? `NPN ${hit.npn}` : null,
                     hit.source === "lnhpd" ? "Health Canada" : "NIH DSLD",
+                    hit.discontinued ? "no longer active" : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {hit.names && hit.names.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    Also sold as {hit.names[1]}
+                    {hit.names.length > 2
+                      ? ` and ${hit.names.length - 2} other name${hit.names.length > 3 ? "s" : ""}`
+                      : ""}
+                  </span>
+                )}
               </button>
             </li>
           ))}
