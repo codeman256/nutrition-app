@@ -69,13 +69,15 @@ export async function saveProduct(input: SaveProductInput) {
   }
 
   await db.insert(productIngredients).values(
-    ingredients.map((ing) => ({
+    ingredients.map((ing, index) => ({
       productId,
       nutrientId: ing.nutrientId,
       label: ing.label.trim(),
       amountPerServing: ing.amountPerServing,
       unit: ing.unit,
       form: ing.form ?? null,
+      // Keep the order the label (or the user) put them in.
+      position: index,
     })),
   );
 

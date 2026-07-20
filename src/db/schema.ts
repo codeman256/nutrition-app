@@ -140,6 +140,10 @@ export const productIngredients = sqliteTable(
     amountPerServing: real("amount_per_serving").notNull(),
     unit: text("unit").notNull(), // mcg | mg | g | IU
     form: text("form"), // e.g. "d3", "natural", "synthetic" — affects IU conversion
+    // Order the ingredient appeared in on the source label, so the product
+    // page can read like the bottle in hand. Canada mandates no ingredient
+    // order, so the source's own order is the best signal we have.
+    position: integer("position").notNull().default(0),
   },
   (t) => [index("product_ingredients_product_id_idx").on(t.productId)],
 );

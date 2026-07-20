@@ -1,0 +1,1 @@
+ALTER TABLE `product_ingredients` ADD `position` integer DEFAULT 0 NOT NULL;

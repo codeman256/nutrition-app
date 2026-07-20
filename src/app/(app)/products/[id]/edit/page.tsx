@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { productIngredients, products } from "@/db/schema";
 import { requireConsentedUser } from "@/lib/session";
@@ -27,10 +27,13 @@ export default async function EditProductPage({
   const product = productRows[0];
   if (!product) notFound();
 
+  // Bottle order: `position` for anything saved since it was introduced,
+  // falling back to insertion order for rows predating it (all position 0).
   const ingredients = await db
     .select()
     .from(productIngredients)
-    .where(eq(productIngredients.productId, productId));
+    .where(eq(productIngredients.productId, productId))
+    .orderBy(asc(productIngredients.position), asc(productIngredients.id));
 
   const draft: ProductDraft = {
     name: product.name,
