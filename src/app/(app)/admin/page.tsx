@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/session";
-import { getLnhpdSyncState } from "@/lib/lookup/lnhpd";
+import { getLnhpdRowCount, getLnhpdSyncState } from "@/lib/lookup/lnhpd";
 import { AdminControls } from "@/components/admin-controls";
 
 export const metadata: Metadata = { title: "Admin" };
 
 export default async function AdminPage() {
   await requireAdmin();
-  const state = await getLnhpdSyncState();
+  const [state, indexedCount] = await Promise.all([
+    getLnhpdSyncState(),
+    getLnhpdRowCount(),
+  ]);
 
   return (
     <div>
@@ -18,8 +21,11 @@ export default async function AdminPage() {
       </p>
       <AdminControls
         lnhpd={{
-          syncedAt: state?.syncedAt ? state.syncedAt.getTime() : null,
-          recordCount: state?.recordCount ?? null,
+          // An empty table means "never downloaded", whatever the last sync
+          // recorded — the two drift apart if the index is cleared.
+          syncedAt:
+            indexedCount > 0 && state?.syncedAt ? state.syncedAt.getTime() : null,
+          recordCount: indexedCount,
           autoSyncDays: state?.autoSyncDays ?? 0,
         }}
       />

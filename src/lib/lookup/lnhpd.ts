@@ -60,6 +60,17 @@ export async function getLnhpdSyncState() {
   return rows[0] ?? null;
 }
 
+/**
+ * Live row count, rather than the `record_count` written at the end of the last
+ * sync. The two can disagree — a failed sync clears the table before inserting,
+ * and the test suite wipes it to seed fixtures — and trusting the cached number
+ * makes the UI claim a full index while search quietly returns nothing.
+ */
+export async function getLnhpdRowCount(): Promise<number> {
+  const rows = await db.select({ n: sql<number>`count(*)` }).from(lnhpdIndex);
+  return rows[0]?.n ?? 0;
+}
+
 /** Persist how often the index should auto-refresh (days; 0 = never). */
 export async function setLnhpdAutoSyncDays(days: number) {
   await db
@@ -244,23 +255,48 @@ export async function syncLnhpdIndex(
 }
 
 /**
+ * Vitamin strengths get written both ways: the bottle says "B Complex 100"
+ * while people search "B100", and "B12" appears as "Vitamin B 12". Split a
+ * letter+digits term into its two halves so each can match separately —
+ * otherwise "b100" is a literal substring that no Jamieson label contains.
+ */
+export function expandVitaminTerms(terms: string[]): string[] {
+  const out: string[] = [];
+  for (const term of terms) {
+    const parts = /^([a-z])[-\s]?(\d+)$/.exec(term);
+    if (parts) {
+      out.push(parts[1], parts[2]);
+    } else {
+      out.push(term);
+    }
+  }
+  return out;
+}
+
+/**
  * Order a licence's names for display: primary name first, then alphabetical.
  * Any name matching the user's search is hoisted to the front so the result
  * shows the wording they actually typed.
  */
+export function nameScore(name: string, terms: string[]): number {
+  const lower = name.toLowerCase();
+  return terms.reduce((n, term) => n + (lower.includes(term) ? 1 : 0), 0);
+}
+
 function orderNames(
   rows: (typeof lnhpdIndex.$inferSelect)[],
   terms: string[],
 ): string[] {
-  const matches = (name: string) =>
-    terms.length > 0 && terms.every((t) => name.toLowerCase().includes(t));
   const seen = new Set<string>();
   return rows
     .slice()
     .sort((a, b) => {
-      const am = matches(a.productName) ? 1 : 0;
-      const bm = matches(b.productName) ? 1 : 0;
-      if (am !== bm) return bm - am;
+      // Lead with the name that explains the match. A licence can match on a
+      // name other than its primary one ("Vitamin B2 100 mg" under a licence
+      // whose primary name is just "Vitamin B2"), and showing the primary
+      // there looks like a wrong result.
+      const scored = nameScore(b.productName, terms) - nameScore(a.productName, terms);
+      if (scored !== 0) return scored;
       const ap = a.flagPrimaryName === 1 ? 1 : 0;
       const bp = b.flagPrimaryName === 1 ? 1 : 0;
       if (ap !== bp) return bp - ap;
@@ -287,13 +323,17 @@ export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[
 
   // every word must appear in the product name or the company name
   // ("jamieson vitamin d" → brand in company_name, rest in product_name)
-  const terms = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+  const terms = expandVitaminTerms(
+    trimmed.toLowerCase().split(/\s+/).filter(Boolean),
+  );
 
   // A one- or two-letter term has to start a word, so the "d" in "vitamin d"
   // matches "Vitamin D3" but not the "d" inside "Jamieson Laboratories Ltd.".
   // Longer terms stay plain substring matches.
+  // Word-start applies only to short *letter* terms. A digit fragment split off
+  // "b2" has to match inside a word, since that's exactly where it lives.
   const termMatches = (term: string) =>
-    term.length <= 2
+    term.length <= 2 && /^[a-z]+$/.test(term)
       ? or(
           like(sql`' ' || lower(${lnhpdIndex.productName})`, `% ${term}%`),
           like(sql`' ' || lower(${lnhpdIndex.companyName})`, `% ${term}%`),
@@ -333,23 +373,33 @@ export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[
     byLicence.set(row.lnhpdId, list);
   }
 
-  return ids.flatMap((id) => {
+  const hits = ids.flatMap((id) => {
     const group = byLicence.get(id);
     if (!group || group.length === 0) return [];
     const names = orderNames(group, terms);
     const head = group[0];
+    const active = group.some((r) => r.flagProductStatus === 1);
     return [
       {
-        source: "lnhpd" as const,
-        sourceId: String(id),
-        name: names[0] ?? head.productName,
-        names,
-        brand: head.companyName,
-        npn: head.licenceNumber,
-        discontinued: !group.some((r) => r.flagProductStatus === 1),
+        hit: {
+          source: "lnhpd" as const,
+          sourceId: String(id),
+          name: names[0] ?? head.productName,
+          names,
+          brand: head.companyName,
+          npn: head.licenceNumber,
+          discontinued: !active,
+        },
+        // best-matching name decides where the licence ranks
+        score: nameScore(names[0] ?? "", terms),
+        active,
       },
     ];
   });
+
+  // Closest name match first, then products still on the market.
+  hits.sort((a, b) => b.score - a.score || Number(b.active) - Number(a.active));
+  return hits.map((h) => h.hit);
 }
 
 interface LnhpdIngredient {

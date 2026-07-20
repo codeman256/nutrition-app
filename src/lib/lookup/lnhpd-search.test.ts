@@ -47,6 +47,16 @@ describe("searchLnhpd", () => {
         flagPrimaryName: 1,
         flagProductStatus: 0,
       }),
+      // Real-world naming: bottles say "B Complex 100", people search "B100".
+      row(6, 60, "00498815", "B Complex 100 Timed Release", "Jamieson Laboratories Ltd.", {
+        flagPrimaryName: 1,
+      }),
+      // A licence whose primary name doesn't contain the strength, but one of
+      // its other names does.
+      row(7, 70, "00309702", "Vitamin B2", "Jamieson Laboratories Ltd.", {
+        flagPrimaryName: 1,
+      }),
+      row(7, 71, "00309702", "Vitamin B2 100 mg", "Jamieson Laboratories Ltd."),
     ]);
   });
 
@@ -93,6 +103,21 @@ describe("searchLnhpd", () => {
   it("leads with the primary name when nothing matches more closely", async () => {
     const hits = await searchLnhpd("01994336");
     expect(hits[0].name).toBe("Vitamin C");
+  });
+
+  it("finds 'B Complex 100' when the user searches 'b100'", async () => {
+    // The strength is written "B Complex 100" on the bottle but typed "B100",
+    // so a literal substring match finds nothing.
+    const hits = await searchLnhpd("b100 complex");
+    expect(hits.map((h) => h.npn)).toContain("00498815");
+  });
+
+  it("leads with the name that explains the match", async () => {
+    // Licence 00309702's primary name is "Vitamin B2"; showing that for a
+    // strength search looks like a wrong result.
+    const hits = await searchLnhpd("b2 100");
+    const hit = hits.find((h) => h.npn === "00309702");
+    expect(hit?.name).toBe("Vitamin B2 100 mg");
   });
 
   it("flags licences with no active name", async () => {

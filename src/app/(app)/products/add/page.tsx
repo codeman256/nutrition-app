@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { requireConsentedUser } from "@/lib/session";
-import { getLnhpdSyncState } from "@/lib/lookup/lnhpd";
+import { getLnhpdRowCount } from "@/lib/lookup/lnhpd";
 import { AddProductFlow } from "@/components/add-product-flow";
 
 export const metadata: Metadata = { title: "Add product" };
 
 export default async function AddProductPage() {
   const { profile } = await requireConsentedUser();
-  const syncState = await getLnhpdSyncState();
+  // Ask the table, not the last sync's cached count — otherwise an emptied
+  // index still hides the "download the database" prompt.
+  const indexedCount = await getLnhpdRowCount();
 
   return (
     <div>
@@ -18,7 +20,7 @@ export default async function AddProductPage() {
       </p>
       <AddProductFlow
         region={profile.region}
-        lnhpdSynced={Boolean(syncState?.syncedAt)}
+        lnhpdSynced={indexedCount > 0}
       />
     </div>
   );

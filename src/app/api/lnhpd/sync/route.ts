@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, isAdmin } from "@/lib/session";
 import {
+  getLnhpdRowCount,
   getLnhpdSyncProgress,
   getLnhpdSyncState,
   setLnhpdAutoSyncDays,
@@ -13,9 +14,11 @@ export const maxDuration = 60;
 async function syncPayload() {
   const state = await getLnhpdSyncState();
   const progress = getLnhpdSyncProgress();
+  // What's actually in the table, not what the last sync claimed to write.
+  const indexedCount = await getLnhpdRowCount();
   return {
-    syncedAt: state?.syncedAt ?? null,
-    recordCount: state?.recordCount ?? null,
+    syncedAt: indexedCount > 0 ? (state?.syncedAt ?? null) : null,
+    recordCount: indexedCount,
     autoSyncDays: state?.autoSyncDays ?? 0,
     syncing: progress.running,
     progress: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import type { ProductDraft, SearchHit } from "@/lib/lookup/types";
@@ -27,6 +27,18 @@ export function AddProductFlow({
   lnhpdSynced: boolean;
 }) {
   const [draft, setDraft] = useState<ProductDraft | null>(null);
+  const [tab, setTab] = useState("search");
+  const [searchSeed, setSearchSeed] = useState("");
+
+  /**
+   * A barcode that resolves to a product with no ingredient amounts is a dead
+   * end, so hand whatever name it did give us to the search tab rather than
+   * dropping the user into an empty form.
+   */
+  function handoffToSearch(query: string) {
+    setSearchSeed(query);
+    setTab("search");
+  }
 
   if (draft) {
     return (
@@ -45,18 +57,27 @@ export function AddProductFlow({
   }
 
   return (
-    <Tabs defaultValue="upc" className="max-w-2xl">
+    <Tabs value={tab} onValueChange={setTab} className="max-w-2xl">
       <TabsList className="grid w-full grid-cols-4">
+        {/* Search leads: an NPN is legally required on every Canadian bottle,
+            whereas barcode data is crowd-sourced and often empty. */}
+        <TabsTrigger value="search">
+          {region === "CA" ? "NPN / name" : "Search"}
+        </TabsTrigger>
         <TabsTrigger value="upc">Barcode</TabsTrigger>
-        <TabsTrigger value="search">Search</TabsTrigger>
         <TabsTrigger value="photo">Label photo</TabsTrigger>
         <TabsTrigger value="manual">Manual</TabsTrigger>
       </TabsList>
-      <TabsContent value="upc" className="pt-4">
-        <UpcTab onDraft={setDraft} />
-      </TabsContent>
       <TabsContent value="search" className="pt-4">
-        <SearchTab region={region} lnhpdSynced={lnhpdSynced} onDraft={setDraft} />
+        <SearchTab
+          region={region}
+          lnhpdSynced={lnhpdSynced}
+          onDraft={setDraft}
+          seed={searchSeed}
+        />
+      </TabsContent>
+      <TabsContent value="upc" className="pt-4">
+        <UpcTab onDraft={setDraft} onSearchInstead={handoffToSearch} />
       </TabsContent>
       <TabsContent value="photo" className="pt-4">
         <PhotoTab onDraft={setDraft} />
@@ -72,12 +93,20 @@ export function AddProductFlow({
   );
 }
 
-function UpcTab({ onDraft }: { onDraft: (d: ProductDraft) => void }) {
+function UpcTab({
+  onDraft,
+  onSearchInstead,
+}: {
+  onDraft: (d: ProductDraft) => void;
+  onSearchInstead: (query: string) => void;
+}) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [thin, setThin] = useState<ProductDraft | null>(null);
 
   async function lookup(value: string) {
     setBusy(true);
+    setThin(null);
     try {
       const res = await fetch(`/api/lookup/upc?code=${encodeURIComponent(value)}`);
       const body = await res.json();
@@ -86,13 +115,12 @@ function UpcTab({ onDraft }: { onDraft: (d: ProductDraft) => void }) {
         return;
       }
       const draft = body.draft as ProductDraft;
-      // P2: some sources (Open Food Facts) return a product with no usable
-      // ingredient amounts — tell the user rather than silently opening a
-      // blank ingredient list.
+      // P2: barcode databases are crowd-sourced and for supplements the entry
+      // is often just a name with no amounts. Offer the search route instead of
+      // dropping the user into an empty ingredient list.
       if (draft.ingredients.length === 0) {
-        toast.warning(
-          "Found the product, but this barcode had no ingredient amounts. Try searching by NPN, a label photo, or fill it in manually.",
-        );
+        setThin(draft);
+        return;
       }
       onDraft(draft);
     } catch {
@@ -116,8 +144,42 @@ function UpcTab({ onDraft }: { onDraft: (d: ProductDraft) => void }) {
       <p className="text-sm text-muted-foreground">
         Scan the barcode or type its number. Looked up in the NIH supplement
         label database first, then Open Food Facts. The scanned number appears
-        in the box below so you can check it.
+        in the box below so you can check it. Barcode entries are crowd-sourced
+        — for supplements they often list a name but no amounts, in which case
+        searching by NPN or name works better.
       </p>
+
+      {thin && (
+        <Alert>
+          <AlertTitle>
+            Found {thin.name ? `“${thin.name}”` : "the product"}, but no
+            ingredient amounts
+          </AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            <span>
+              This barcode has no nutrient data behind it, so there is nothing
+              to import. Searching Health Canada by name or NPN usually finds
+              the full ingredient list.
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => onSearchInstead(thin.name ?? "")}
+              >
+                Search for it instead
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onDraft(thin)}
+              >
+                Enter amounts myself
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <BarcodeScanner onDetected={handleDetected} onError={(m) => toast.error(m)} />
       <form
         className="flex items-end gap-2"
@@ -148,10 +210,13 @@ function SearchTab({
   region,
   lnhpdSynced,
   onDraft,
+  seed,
 }: {
   region: "CA" | "US";
   lnhpdSynced: boolean;
   onDraft: (d: ProductDraft) => void;
+  /** query handed over from a barcode that had no usable data */
+  seed?: string;
 }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -160,11 +225,20 @@ function SearchTab({
   const [syncCount, setSyncCount] = useState(0);
   const [synced, setSynced] = useState(lnhpdSynced);
 
-  async function search() {
+  // Prefill and run whatever name the barcode lookup managed to find.
+  useEffect(() => {
+    if (!seed) return;
+    setQ(seed);
+    void runSearch(seed);
+    // runSearch is stable enough for this one-shot handoff
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
+
+  async function runSearch(term: string) {
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/lookup/search?q=${encodeURIComponent(q)}&region=${region}`,
+        `/api/lookup/search?q=${encodeURIComponent(term)}&region=${region}`,
       );
       const body = await res.json();
       if (!res.ok) {
@@ -238,9 +312,37 @@ function SearchTab({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         {region === "CA"
-          ? "Search by NPN licence number (8 digits on Canadian bottles) or product name. Canadian results come first, then the US NIH database."
+          ? "Search by NPN licence number or product name. Canadian results come first, then the US NIH database. Searching by NPN is the most reliable — it identifies exactly one licence."
           : "Search the NIH supplement label database by product name."}
       </p>
+
+      {region === "CA" && (
+        <details className="rounded-lg border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            Where do I find the NPN on my bottle?
+          </summary>
+          <div className="mt-2 flex flex-col gap-2 text-muted-foreground">
+            <p>
+              Canadian law requires every natural health product to show its
+              licence number on the <strong>front of the label</strong> (the
+              &ldquo;principal display panel&rdquo;), written as{" "}
+              <strong>NPN</strong> followed by 8 digits — for example{" "}
+              <code className="rounded bg-muted px-1 py-0.5">NPN 80012345</code>.
+              Homeopathic products use <strong>DIN-HM</strong> instead.
+            </p>
+            <p>
+              There is no rule about how <em>prominent</em> it has to be, so it
+              is often tiny and printed sideways near a bottom corner of the
+              front label. On Jamieson bottles it sits in the lower right of the
+              red band. Tilt the bottle under good light — it is always there.
+            </p>
+            <p>
+              You can type just the digits; the leading zeros matter, so enter
+              all 8.
+            </p>
+          </div>
+        </details>
+      )}
 
       {region === "CA" && !synced && (
         <Alert>
@@ -276,7 +378,7 @@ function SearchTab({
         className="flex items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (q.trim().length >= 2) void search();
+          if (q.trim().length >= 2) void runSearch(q);
         }}
       >
         <div className="flex flex-1 flex-col gap-2">
