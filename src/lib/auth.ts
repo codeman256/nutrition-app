@@ -31,6 +31,29 @@ function resolveAuthSecret(): string {
   return secret;
 }
 
+// Hops between the real client and this container (typically the reverse
+// proxy's docker network) that better-auth should strip from
+// X-Forwarded-For when resolving a client IP for rate limiting. Without a
+// trusted-proxies list, a multi-hop chain (e.g. CDN -> reverse proxy) is
+// rejected outright. Defaults cover standard private ranges, which is right
+// for the vast majority of reverse-proxy setups; override via
+// TRUSTED_PROXIES (comma-separated IPs/CIDRs) for anything unusual.
+const DEFAULT_TRUSTED_PROXIES = [
+  "127.0.0.1/32",
+  "::1/128",
+  "10.0.0.0/8",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+];
+
+function resolveTrustedProxies(): string[] {
+  const fromEnv = (process.env.TRUSTED_PROXIES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_TRUSTED_PROXIES;
+}
+
 export const auth = betterAuth({
   secret: resolveAuthSecret(),
   database: drizzleAdapter(db, {
@@ -69,6 +92,9 @@ export const auth = betterAuth({
     // Secure-only cookies break login on plain-HTTP LAN deployments (the
     // normal unraid setup). Opt in via USE_SECURE_COOKIES=true behind HTTPS.
     useSecureCookies: process.env.USE_SECURE_COOKIES === "true",
+    ipAddress: {
+      trustedProxies: resolveTrustedProxies(),
+    },
   },
   plugins: [nextCookies()],
 });

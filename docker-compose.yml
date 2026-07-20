@@ -16,6 +16,10 @@ services:
       TRUSTED_ORIGINS: ""
       # set to "true" only when served exclusively over HTTPS
       USE_SECURE_COOKIES: "false"
+      # proxy hops to trust when resolving the real client IP from
+      # X-Forwarded-For; defaults to standard private ranges, leave blank
+      # unless your reverse proxy sits somewhere unusual
+      TRUSTED_PROXIES: ""
       # file ownership for /data (defaults match unraid's nobody:users)
       PUID: "99"
       PGID: "100"
