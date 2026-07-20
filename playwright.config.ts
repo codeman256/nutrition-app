@@ -10,10 +10,18 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  reporter: process.env.CI
+    ? [["github"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    : "list",
+  // `next dev` compiles each route the first time it is hit, which on a cold CI
+  // runner can take well over the 5s default and made the sign-up flow flaky.
+  timeout: 60_000,
+  expect: { timeout: 20_000 },
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
