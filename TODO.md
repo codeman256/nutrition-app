@@ -69,13 +69,14 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 
 ## Admin & data
 
-- [ ] **A1 — First user is admin.** Admin-only: in-browser **backup**
-  (download the SQLite DB) and **restore** (upload) — handy for copying the
-  local dev DB onto the unraid instance.
-- [ ] **A2 — Admin controls LNHPD sync schedule** (off / weekly / monthly)
-  plus a manual re-sync button.
-- [~] **R1 — LNHPD sync as a background job** with a polled progress endpoint
-  (no "in progress" indicator today).
+- [x] **A1 — First user is admin.** Admin-only `/admin` page: in-browser
+  **backup** (download the SQLite DB) and **restore** (upload) — handy for
+  copying the local dev DB onto the unraid instance.
+- [x] **A2 — Admin controls LNHPD sync schedule** (never / weekly / monthly /
+  quarterly) plus a manual re-sync button. `instrumentation.ts` checks the
+  schedule after boot and every 6h.
+- [x] **R1 — LNHPD sync as a background job** with a polled progress endpoint —
+  POST starts it and returns immediately; GET reports live row count.
 - [~] **R5 — Backup story** (documented + the A1 in-browser flow).
 
 ## Ops & quality

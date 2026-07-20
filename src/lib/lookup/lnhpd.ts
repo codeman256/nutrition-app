@@ -36,11 +36,94 @@ export async function getLnhpdSyncState() {
   return rows[0] ?? null;
 }
 
+/** Persist how often the index should auto-refresh (days; 0 = never). */
+export async function setLnhpdAutoSyncDays(days: number) {
+  await db
+    .insert(lnhpdSyncState)
+    .values({ id: 1, autoSyncDays: days })
+    .onConflictDoUpdate({
+      target: lnhpdSyncState.id,
+      set: { autoSyncDays: days },
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Background sync job (single instance, in-process)                   */
+/* ------------------------------------------------------------------ */
+
+export interface LnhpdSyncProgress {
+  running: boolean;
+  /** rows ingested so far in the running/last job */
+  count: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  error: string | null;
+}
+
+// Survive dev hot reloads so a running job isn't orphaned.
+const globalForSync = globalThis as unknown as { lnhpdSyncJob?: LnhpdSyncProgress };
+const syncJob: LnhpdSyncProgress = (globalForSync.lnhpdSyncJob ??= {
+  running: false,
+  count: 0,
+  startedAt: null,
+  finishedAt: null,
+  error: null,
+});
+
+export function getLnhpdSyncProgress(): LnhpdSyncProgress {
+  return { ...syncJob };
+}
+
+/**
+ * Kick off a sync in the background if one isn't already running, and return
+ * the current progress immediately. Callers poll {@link getLnhpdSyncProgress}.
+ */
+export function startLnhpdSync(): LnhpdSyncProgress {
+  if (syncJob.running) return { ...syncJob };
+  syncJob.running = true;
+  syncJob.count = 0;
+  syncJob.startedAt = Date.now();
+  syncJob.finishedAt = null;
+  syncJob.error = null;
+  void syncLnhpdIndex((n) => {
+    syncJob.count = n;
+  })
+    .then((r) => {
+      syncJob.count = r.recordCount;
+    })
+    .catch((e: unknown) => {
+      syncJob.error = e instanceof Error ? e.message : "unknown error";
+    })
+    .finally(() => {
+      syncJob.running = false;
+      syncJob.finishedAt = Date.now();
+    });
+  return { ...syncJob };
+}
+
+/** True when auto-sync is enabled and the index is older than the interval. */
+export async function isLnhpdSyncDue(): Promise<boolean> {
+  const state = await getLnhpdSyncState();
+  const days = state?.autoSyncDays ?? 0;
+  if (days <= 0) return false;
+  if (!state?.syncedAt) return true;
+  return Date.now() - state.syncedAt.getTime() >= days * 86_400_000;
+}
+
+/** Start a sync only if the schedule says one is due and none is running. */
+export async function maybeAutoSyncLnhpd(): Promise<void> {
+  if (syncJob.running) return;
+  if (await isLnhpdSyncDue()) startLnhpdSync();
+}
+
 /**
  * Download the full product-licence dump and rebuild the local index.
  * Takes a few minutes on a typical connection; call from a route handler.
+ * `onProgress` is invoked with the running row count as batches land.
  */
-export async function syncLnhpdIndex(): Promise<{ recordCount: number }> {
+export async function syncLnhpdIndex(
+  onProgress?: (count: number) => void,
+): Promise<{ recordCount: number }> {
   const res = await fetch(`${BASE}/productlicence/?lang=en&type=json`, {
     // the dump is large and the server is slow to start streaming
     signal: AbortSignal.timeout(20 * 60_000),
@@ -82,9 +165,13 @@ export async function syncLnhpdIndex(): Promise<{ recordCount: number }> {
       dosageForm: record.dosage_form ?? null,
     });
     count++;
-    if (batch.length >= 2000) await flush();
+    if (batch.length >= 2000) {
+      await flush();
+      onProgress?.(count);
+    }
   }
   await flush();
+  onProgress?.(count);
 
   await db
     .insert(lnhpdSyncState)

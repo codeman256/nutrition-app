@@ -8,6 +8,7 @@ import {
   Pill,
   CalendarDays,
   UserRound,
+  ShieldCheck,
   LogOut,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Disclaimer } from "@/components/disclaimer";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Products", icon: Pill },
   { href: "/regimen", label: "Regimen", icon: CalendarDays },
@@ -24,13 +25,19 @@ const navItems = [
 
 export function AppShell({
   userName,
+  isAdmin = false,
   children,
 }: {
   userName: string;
+  isAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const navItems = isAdmin
+    ? [...baseNavItems, { href: "/admin", label: "Admin", icon: ShieldCheck }]
+    : baseNavItems;
 
   async function handleSignOut() {
     await signOut();
@@ -106,7 +113,8 @@ export function AppShell({
         {/* Mobile bottom navigation */}
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+          className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
         >
           {navItems.map(({ href, label, icon: Icon }) => (
             <Link

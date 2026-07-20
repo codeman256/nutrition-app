@@ -157,6 +157,7 @@ function SearchTab({
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncCount, setSyncCount] = useState(0);
   const [synced, setSynced] = useState(lnhpdSynced);
 
   async function search() {
@@ -197,19 +198,38 @@ function SearchTab({
 
   async function runSync() {
     setSyncing(true);
+    setSyncCount(0);
     toast.info("Downloading the Health Canada index — this takes a few minutes…");
     try {
-      const res = await fetch("/api/lnhpd/sync", { method: "POST" });
-      const body = await res.json();
-      if (!res.ok) {
+      const start = await fetch("/api/lnhpd/sync", { method: "POST" });
+      if (!start.ok) {
+        const body = await start.json().catch(() => ({}));
         toast.error(body.error ?? "Sync failed");
+        setSyncing(false);
         return;
       }
-      setSynced(true);
-      toast.success(`Index ready — ${body.recordCount.toLocaleString()} products`);
+      // Poll for progress until the background job finishes.
+      const poll = async (): Promise<void> => {
+        const res = await fetch("/api/lnhpd/sync");
+        const body = await res.json();
+        setSyncCount(body.progress?.count ?? 0);
+        if (body.syncing) {
+          setTimeout(() => void poll(), 2000);
+          return;
+        }
+        setSyncing(false);
+        if (body.progress?.error) {
+          toast.error(`Sync failed: ${body.progress.error}`);
+          return;
+        }
+        setSynced(true);
+        toast.success(
+          `Index ready — ${(body.recordCount ?? 0).toLocaleString()} products`,
+        );
+      };
+      void poll();
     } catch {
       toast.error("Sync failed — check your connection.");
-    } finally {
       setSyncing(false);
     }
   }
@@ -240,7 +260,9 @@ function SearchTab({
               {syncing ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Downloading…
+                  {syncCount > 0
+                    ? `Downloading… ${syncCount.toLocaleString()} products`
+                    : "Downloading…"}
                 </>
               ) : (
                 "Download now"

@@ -1,10 +1,10 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { profiles } from "@/db/schema";
+import { profiles, user } from "@/db/schema";
 
 export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
@@ -31,8 +31,32 @@ export const getProfile = cache(async (userId: string) => {
  * notice; otherwise sends them to the consent screen first.
  */
 export async function requireConsentedUser() {
-  const user = await requireUser();
-  const profile = await getProfile(user.id);
+  const authUser = await requireUser();
+  const profile = await getProfile(authUser.id);
   if (!profile?.consentAcceptedAt) redirect("/consent");
-  return { user, profile };
+  return { user: authUser, profile };
+}
+
+/**
+ * The instance admin is the first account created on this server. This is a
+ * single-tenant, self-hosted app, so the owner is whoever set it up.
+ */
+export const getAdminUserId = cache(async (): Promise<string | null> => {
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .orderBy(asc(user.createdAt), asc(user.id))
+    .limit(1);
+  return rows[0]?.id ?? null;
+});
+
+export const isAdmin = cache(async (userId: string): Promise<boolean> => {
+  return (await getAdminUserId()) === userId;
+});
+
+/** Redirects non-admins away; returns the admin user when allowed. */
+export async function requireAdmin() {
+  const authUser = await requireUser();
+  if (!(await isAdmin(authUser.id))) redirect("/dashboard");
+  return authUser;
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `lnhpd_sync_state` ADD `auto_sync_days` integer DEFAULT 0 NOT NULL;

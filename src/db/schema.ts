@@ -162,6 +162,8 @@ export const lnhpdSyncState = sqliteTable("lnhpd_sync_state", {
   id: integer("id").primaryKey(), // single row, id = 1
   syncedAt: integer("synced_at", { mode: "timestamp" }),
   recordCount: integer("record_count"),
+  // how often to auto-refresh the index, in days; 0 = never
+  autoSyncDays: integer("auto_sync_days").notNull().default(0),
 });
 
 export const regimenItems = sqliteTable(
