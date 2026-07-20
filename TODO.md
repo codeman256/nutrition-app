@@ -77,14 +77,17 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   schedule after boot and every 6h.
 - [x] **R1 — LNHPD sync as a background job** with a polled progress endpoint —
   POST starts it and returns immediately; GET reports live row count.
-- [~] **R5 — Backup story** (documented + the A1 in-browser flow).
+- [x] **R5 — Backup story** — README "Backup & restore" section + the A1
+  in-browser flow.
 
 ## Ops & quality
 
-- [~] **R2 — Docker HEALTHCHECK** for unraid's health indicator.
+- [x] **R2 — Docker HEALTHCHECK** for unraid's health indicator (hits
+  `/api/health`, which pings the DB).
 - [ ] **R3 — arm64 image** (`linux/arm64` in buildx).
 - [ ] **R4 — Login rate limiting.**
-- [~] **F3 — Printable week view** of the regimen.
+- [x] **F3 — Printable week view** of the regimen (`/regimen/print`, print CSS
+  hides the app chrome).
 - [~] **Q1 — Playwright e2e suite** in CI.
 - [ ] **Q2 — Automated axe/Lighthouse a11y pass** in CI.
 

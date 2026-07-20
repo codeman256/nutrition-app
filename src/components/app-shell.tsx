@@ -48,7 +48,7 @@ export function AppShell({
   return (
     <div className="flex min-h-dvh">
       {/* Desktop sidebar */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r md:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-5">
           <Image src="/icon-192.png" alt="" width={32} height={32} className="rounded-lg" />
           <span className="text-lg font-semibold">VitaPlan</span>
@@ -89,7 +89,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between border-b px-4 py-3 md:hidden print:hidden">
           <div className="flex items-center gap-2">
             <Image src="/icon-192.png" alt="" width={28} height={28} className="rounded-md" />
             <span className="font-semibold">VitaPlan</span>
@@ -104,7 +104,7 @@ export function AppShell({
           </Button>
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:pb-6">
+        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:pb-6 print:p-0">
           {children}
         </main>
 
@@ -114,7 +114,7 @@ export function AppShell({
         <nav
           aria-label="Main"
           style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
-          className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden print:hidden"
         >
           {navItems.map(({ href, label, icon: Icon }) => (
             <Link

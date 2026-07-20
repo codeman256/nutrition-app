@@ -73,6 +73,27 @@ services:
     restart: unless-stopped
 ```
 
+## Backup & restore
+
+The **first account** you create is the instance admin and gets an **Admin**
+page (link in the nav). From there you can:
+
+- **Download backup** — a consistent snapshot of the whole SQLite database
+  (`vitaplan-YYYY-MM-DD.db`): all accounts, profiles, products, and regimens.
+- **Restore from backup** — upload a `.db` file to replace the current
+  database. This is how you copy a local/dev database onto your unraid
+  instance, or roll back after a mistake.
+
+  ⚠️ Restore **overwrites all current data** with the uploaded file.
+
+Because everything lives in the `/data` volume, you can also just copy
+`data/vitaplan.db` (plus `-wal`/`-shm` if present) while the container is
+stopped. The Admin download is the safe way to grab a copy while it's running.
+
+The Admin page also controls the Health Canada (LNHPD) index: its last-updated
+time, an auto-refresh schedule (never / weekly / monthly / quarterly), and a
+manual **Refresh now** button that shows live download progress.
+
 ## Development
 
 ```bash

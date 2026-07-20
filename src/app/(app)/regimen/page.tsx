@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Printer } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { products, regimenItems } from "@/db/schema";
@@ -37,12 +38,24 @@ export default async function RegimenPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">My Regimen</h1>
-      <p className="mt-1 mb-6 text-sm text-muted-foreground">
-        Choose what you take, how many servings, and on which days of the week.
-        When you enable a product it starts on <strong>every day</strong> —
-        highlighted day circles are on; tap one to skip that day.
-      </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">My Regimen</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Choose what you take, how many servings, and on which days of the
+            week. When you enable a product it starts on{" "}
+            <strong>every day</strong> — highlighted day circles are on; tap one
+            to skip that day.
+          </p>
+        </div>
+        {rows.some((r) => r.servingsPerDay !== null) && (
+          <Button asChild variant="outline" className="shrink-0 gap-2">
+            <Link href="/regimen/print">
+              <Printer className="size-4" aria-hidden="true" /> Print week
+            </Link>
+          </Button>
+        )}
+      </div>
       {rows.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed p-8">
           <p className="text-sm text-muted-foreground">
