@@ -45,13 +45,16 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 
 ## Dashboard
 
-- [ ] **D1 — Units unclear.** Numbers have no visible unit. Show the unit
-  per row clearly and/or a unit toggle.
-- [ ] **D2 — Move "What if I add…" to the bottom** of the page.
-- [ ] **D3 — Acronym tooltips** (RDA/AI/UL/DV) on the column headers.
-- [ ] **D4 — Source citations for status.** "300% over limit on B3 — says
-  who?" Link each nutrient's target/limit to its NIH fact sheet.
-- [ ] **D5 — Show % Daily Value** column alongside % target (was F1).
+- [x] **D1 — Units unclear.** Unit column now sits *after* the columns it
+  describes, acting as a divider: everything left of it is in that unit,
+  everything right is a percentage. Plus a "Show units" toggle — as on the
+  label (default), everything in mcg, everything in mg, or IU where it
+  applies (vitamins A/D/E only). Conversions are unit-tested.
+- [x] **D2 — Move "What if I add…" to the bottom** of the page.
+- [x] **D3 — Acronym tooltips** (RDA/AI/UL/DV) on the column headers.
+- [x] **D4 — Source citations for status.** "300% over limit on B3 — says
+  who?" Each nutrient name links to its NIH fact sheet.
+- [x] **D5 — Show % Daily Value** column alongside % target (was F1).
 - [ ] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
   as the grid grows.
 

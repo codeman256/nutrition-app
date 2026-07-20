@@ -46,6 +46,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  UNIT_MODES,
+  displayUnit,
+  type UnitMode,
+} from "@/lib/display-units";
 import { cn } from "@/lib/utils";
 
 function formatAmount(n: number): string {
@@ -53,6 +58,7 @@ function formatAmount(n: number): string {
   if (n >= 10) return n.toFixed(1).replace(/\.0$/, "");
   return n.toFixed(2).replace(/\.?0+$/, "");
 }
+
 
 const STATUS_META = {
   "below-rda": { label: "Below target", icon: Minus, className: "text-muted-foreground" },
@@ -89,6 +95,14 @@ function HeadWithHelp({
   );
 }
 
+/** "Vitamin D: 5,000 IU vs limit 4,000 IU" in whichever unit is on screen. */
+function describeOverUl(row: NutrientRow, mode: UnitMode): string {
+  const { unit, factor } = displayUnit(row.nutrient, mode);
+  const total = formatAmount(row.total * factor);
+  const limit = formatAmount(row.ul! * factor);
+  return `${row.nutrient.name}: ${total} ${unit} vs limit ${limit} ${unit}`;
+}
+
 const NONE = "__none__";
 
 export function DashboardView({
@@ -103,6 +117,7 @@ export function DashboardView({
   today: Weekday;
 }) {
   const [day, setDay] = useState<Weekday>(today);
+  const [unitMode, setUnitMode] = useState<UnitMode>("label");
   const [whatIfId, setWhatIfId] = useState<string>(NONE);
   const [whatIfServings, setWhatIfServings] = useState(1);
 
@@ -126,28 +141,30 @@ export function DashboardView({
 
   function exportCsv() {
     const header = [
-      "Nutrient", "Unit",
+      "Nutrient",
       ...plan.products.map((p) => p.name),
-      "Total", "Recommended", "% Recommended",
-      "Daily Value", "% Daily Value",
-      "Upper limit", "% Upper limit", "Status",
+      "Total", "Recommended", "Upper limit", "Unit",
+      "% Recommended", "Daily Value", "% Daily Value",
+      "% Upper limit", "Status",
     ];
     const lines = [header];
     for (const row of plan.rows) {
+      const { unit, factor } = displayUnit(row.nutrient, unitMode);
+      const scaled = (n: number) => formatAmount(n * factor);
       lines.push([
         row.nutrient.name,
-        row.nutrient.unit,
         ...plan.products.map((p) =>
-          row.contributions[p.id] ? formatAmount(row.contributions[p.id]) : "0",
+          row.contributions[p.id] ? scaled(row.contributions[p.id]) : "0",
         ),
-        formatAmount(row.total),
-        row.recommended !== null ? formatAmount(row.recommended) : "",
+        scaled(row.total),
+        row.recommended !== null ? scaled(row.recommended) : "",
+        row.ul !== null ? scaled(row.ul) : "",
+        unit,
         row.pctRecommended !== null ? Math.round(row.pctRecommended) + "%" : "",
-        row.nutrient.dailyValue !== undefined ? formatAmount(row.nutrient.dailyValue) : "",
+        row.nutrient.dailyValue !== undefined ? scaled(row.nutrient.dailyValue) : "",
         row.nutrient.dailyValue
           ? Math.round((row.total / row.nutrient.dailyValue) * 100) + "%"
           : "",
-        row.ul !== null ? formatAmount(row.ul) : "",
         row.pctUl !== null ? Math.round(row.pctUl) + "%" : "",
         STATUS_META[row.status].label,
       ]);
@@ -179,9 +196,29 @@ export function DashboardView({
             ))}
           </TabsList>
         </Tabs>
-        <Button variant="outline" size="sm" className="gap-1" onClick={exportCsv}>
-          <Download className="size-4" aria-hidden="true" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="unit-mode" className="text-xs whitespace-nowrap">
+            Show units
+          </Label>
+          <Select
+            value={unitMode}
+            onValueChange={(v) => setUnitMode(v as UnitMode)}
+          >
+            <SelectTrigger id="unit-mode" size="sm" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UNIT_MODES.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" className="gap-1" onClick={exportCsv}>
+            <Download className="size-4" aria-hidden="true" /> Export CSV
+          </Button>
+        </div>
       </div>
 
       {!result && plan.overUl.length > 0 && (
@@ -191,19 +228,18 @@ export function DashboardView({
             Over the safe upper limit on {WEEKDAY_LABELS[day]}
           </AlertTitle>
           <AlertDescription>
-            {plan.overUl
-              .map(
-                (row) =>
-                  `${row.nutrient.name}: ${formatAmount(row.total)} ${row.nutrient.unit} vs limit ${formatAmount(row.ul!)} ${row.nutrient.unit}`,
-              )
-              .join(" · ")}
+            {plan.overUl.map((row) => describeOverUl(row, unitMode)).join(" · ")}
           </AlertDescription>
         </Alert>
       )}
 
       <p className="text-sm text-muted-foreground">
-        Amounts are per day, each in the unit shown next to the nutrient.
+        Amounts are per day. Every number left of the <strong>Unit</strong>{" "}
+        column is in that unit; everything right of it is a percentage.
         Underlined column names have a definition on hover.
+        {unitMode === "iu" && (
+          <> Only vitamins A, D and E have an IU — the rest keep their own unit.</>
+        )}
       </p>
 
       {plan.rows.length === 0 ? (
@@ -217,7 +253,6 @@ export function DashboardView({
             <TableHeader>
               <TableRow>
                 <TableHead scope="col" className="min-w-40">Nutrient</TableHead>
-                <TableHead scope="col">Unit</TableHead>
                 {plan.products.map((p) => (
                   <TableHead scope="col" key={p.id} className="min-w-24">
                     {p.name}
@@ -230,17 +265,24 @@ export function DashboardView({
                     help="RDA (Recommended Dietary Allowance) — the daily amount that meets the needs of nearly all healthy people. Marked * where only an AI (Adequate Intake) exists."
                   />
                 </TableHead>
+                <TableHead scope="col">
+                  <HeadWithHelp
+                    label="Limit"
+                    help="UL (Tolerable Upper Intake Level) — the highest daily amount unlikely to cause harm. Blank means no UL has been established."
+                  />
+                </TableHead>
+                {/* Divider: everything left of here is in this unit, everything right is a percentage */}
+                <TableHead scope="col" className="border-r">
+                  <HeadWithHelp
+                    label="Unit"
+                    help="The unit for every number to the left on this row. Use the “Show units” picker above to convert the whole grid to mcg, mg, or IU."
+                  />
+                </TableHead>
                 <TableHead scope="col">% Target</TableHead>
                 <TableHead scope="col">
                   <HeadWithHelp
                     label="%DV"
                     help="Percent of the FDA Daily Value — the single reference number printed on supplement labels (not age/sex specific). Useful for sanity-checking an import against the bottle."
-                  />
-                </TableHead>
-                <TableHead scope="col">
-                  <HeadWithHelp
-                    label="Limit"
-                    help="UL (Tolerable Upper Intake Level) — the highest daily amount unlikely to cause harm. Blank means no UL has been established."
                   />
                 </TableHead>
                 <TableHead scope="col">% Limit</TableHead>
@@ -252,6 +294,8 @@ export function DashboardView({
                 const meta = STATUS_META[row.status];
                 const Icon = meta.icon;
                 const dv = row.nutrient.dailyValue;
+                const { unit, factor } = displayUnit(row.nutrient, unitMode);
+                const scaled = (n: number) => formatAmount(n * factor);
                 return (
                   <TableRow key={row.nutrient.id}>
                     <TableCell className="font-medium">
@@ -270,23 +314,20 @@ export function DashboardView({
                         row.nutrient.name
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.nutrient.unit}
-                    </TableCell>
                     {plan.products.map((p) => (
                       <TableCell key={p.id} className="tabular-nums">
                         {row.contributions[p.id]
-                          ? formatAmount(row.contributions[p.id])
+                          ? scaled(row.contributions[p.id])
                           : "—"}
                       </TableCell>
                     ))}
                     <TableCell className="font-semibold tabular-nums">
-                      {formatAmount(row.total)}
+                      {scaled(row.total)}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {row.recommended !== null ? (
                         <>
-                          {formatAmount(row.recommended)}
+                          {scaled(row.recommended)}
                           {row.isAI && (
                             <span className="text-xs text-muted-foreground" title="Adequate Intake (no RDA established)">
                               *
@@ -298,15 +339,18 @@ export function DashboardView({
                       )}
                     </TableCell>
                     <TableCell className="tabular-nums">
+                      {row.ul !== null ? scaled(row.ul) : "none set"}
+                    </TableCell>
+                    <TableCell className="border-r text-muted-foreground">
+                      {unit}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
                       {row.pctRecommended !== null
                         ? `${Math.round(row.pctRecommended)}%`
                         : "—"}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {dv ? `${Math.round((row.total / dv) * 100)}%` : "—"}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {row.ul !== null ? formatAmount(row.ul) : "none set"}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {row.pctUl !== null ? `${Math.round(row.pctUl)}%` : "—"}
@@ -384,10 +428,7 @@ export function DashboardView({
             <AlertTitle>This addition would go over safe limits</AlertTitle>
             <AlertDescription>
               {result.newlyOverUl
-                .map(
-                  (row) =>
-                    `${row.nutrient.name}: ${formatAmount(row.total)} ${row.nutrient.unit} vs limit ${formatAmount(row.ul!)} ${row.nutrient.unit}`,
-                )
+                .map((row) => describeOverUl(row, unitMode))
                 .join(" · ")}
             </AlertDescription>
           </Alert>
