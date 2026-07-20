@@ -28,6 +28,7 @@ export default async function RegimenPage() {
         brand: p.brand,
         servingSize: p.servingSize,
         imageSrc: p.imagePath ? `/api/uploads/${p.imagePath}` : p.imageUrl,
+        pillColor: p.pillColor,
         servingsPerDay: item?.servingsPerDay ?? null,
         daysOfWeek: item?.daysOfWeek ?? EVERY_DAY,
       };
@@ -39,6 +40,8 @@ export default async function RegimenPage() {
       <h1 className="text-2xl font-semibold">My Regimen</h1>
       <p className="mt-1 mb-6 text-sm text-muted-foreground">
         Choose what you take, how many servings, and on which days of the week.
+        When you enable a product it starts on <strong>every day</strong> —
+        highlighted day circles are on; tap one to skip that day.
       </p>
       {rows.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed p-8">

@@ -15,6 +15,13 @@
       "when": 1784439537601,
       "tag": "0001_lnhpd-index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784517791038,
+      "tag": "0002_pill-color",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,7 @@ export async function saveProduct(input: SaveProductInput) {
     source: input.source,
     imageUrl: input.imageUrl || null,
     imagePath: input.imagePath || null,
+    pillColor: input.pillColor || null,
     notes: input.notes?.trim() || null,
     updatedAt: new Date(),
   };

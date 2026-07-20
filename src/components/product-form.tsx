@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload } from "lucide-react";
-import { Info } from "lucide-react";
+import { Trash2, Plus, Upload, Info, Check } from "lucide-react";
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
+import { PILL_COLORS, pillColorClass } from "@/data/pill-colors";
 import { saveProduct, type SaveProductInput } from "@/lib/actions/products";
 import type { IngredientDraft, ProductDraft } from "@/lib/lookup/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export function ProductForm({
       : [{ label: "", nutrientId: null, amountPerServing: 0, unit: "mg" }],
   );
   const [imagePath, setImagePath] = useState<string | null>(existingImagePath ?? null);
+  const [pillColor, setPillColor] = useState<string | null>(draft.pillColor ?? null);
   const [busy, setBusy] = useState(false);
 
   function updateIngredient(index: number, patch: Partial<IngredientDraft>) {
@@ -72,6 +74,7 @@ export function ProductForm({
       servingSize: servingSize || null,
       ingredients,
       imagePath,
+      pillColor,
     };
     const result = await saveProduct(input);
     setBusy(false);
@@ -99,7 +102,10 @@ export function ProductForm({
         ) : (
           <div
             aria-hidden="true"
-            className="flex size-24 shrink-0 items-center justify-center rounded-lg border text-3xl"
+            className={cn(
+              "flex size-24 shrink-0 items-center justify-center rounded-lg border text-3xl",
+              pillColorClass(pillColor),
+            )}
           >
             💊
           </div>
@@ -126,6 +132,31 @@ export function ProductForm({
           </div>
         </div>
       </div>
+
+      {!imageSrc && (
+        <div className="flex flex-col gap-2">
+          <Label>Pill colour (used when there&apos;s no photo)</Label>
+          <div className="flex flex-wrap gap-2">
+            {PILL_COLORS.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                aria-label={c.label}
+                aria-pressed={pillColor === c.key}
+                title={c.label}
+                onClick={() => setPillColor(pillColor === c.key ? null : c.key)}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full border-2 transition",
+                  c.className,
+                  pillColor === c.key ? "border-foreground" : "border-transparent",
+                )}
+              >
+                {pillColor === c.key && <Check className="size-4" aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="p-photo">Your photo of the bottle (optional)</Label>

@@ -16,6 +16,7 @@ export interface ProductDraft {
   servingSize?: string | null;
   servingsPerContainer?: number | null;
   imageUrl?: string | null;
+  pillColor?: string | null;
   source: "dsld" | "off" | "lnhpd" | "ocr" | "manual";
   ingredients: IngredientDraft[];
 }

@@ -71,6 +71,7 @@ export default async function ProductsPage() {
                 servingSize: p.servingSize,
                 imageUrl: p.imageUrl,
                 imagePath: p.imagePath,
+                pillColor: p.pillColor,
                 trackedCount: p.trackedCount,
                 totalCount: p.totalCount,
               }}

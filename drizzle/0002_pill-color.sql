@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `pill_color` text;

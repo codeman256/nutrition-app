@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { EVERY_DAY } from "@/lib/planner";
+import { EVERY_DAY, activeDayCount } from "@/lib/planner";
 import { saveRegimen, type RegimenItemUpdate } from "@/lib/actions/regimen";
+import { pillColorClass } from "@/data/pill-colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ export interface RegimenProductRow {
   brand: string | null;
   servingSize: string | null;
   imageSrc: string | null;
+  pillColor: string | null;
   /** null when the product isn't in the regimen */
   servingsPerDay: number | null;
   daysOfWeek: number;
@@ -91,7 +93,10 @@ export function RegimenEditor({ initial }: { initial: RegimenProductRow[] }) {
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="flex size-12 shrink-0 items-center justify-center rounded-md border"
+                    className={cn(
+                      "flex size-12 shrink-0 items-center justify-center rounded-md border",
+                      pillColorClass(row.pillColor),
+                    )}
                   >
                     💊
                   </div>
@@ -127,36 +132,56 @@ export function RegimenEditor({ initial }: { initial: RegimenProductRow[] }) {
                       className="w-20"
                     />
                   </div>
-                  <div
-                    role="group"
-                    aria-label={`Days of week for ${row.name}`}
-                    className="flex gap-1"
-                  >
-                    {DAY_LETTERS.map((letter, day) => {
-                      const on = ((row.daysOfWeek >> day) & 1) === 1;
-                      return (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium">
+                        {activeDayCount(row.daysOfWeek) === 7
+                          ? "Every day"
+                          : activeDayCount(row.daysOfWeek) === 0
+                            ? "No days selected"
+                            : `${activeDayCount(row.daysOfWeek)} days`}
+                      </span>
+                      {activeDayCount(row.daysOfWeek) !== 7 && (
                         <button
-                          key={day}
                           type="button"
-                          aria-pressed={on}
-                          aria-label={DAY_NAMES[day]}
-                          title={DAY_NAMES[day]}
-                          onClick={() =>
-                            update(row.productId, {
-                              daysOfWeek: row.daysOfWeek ^ (1 << day),
-                            })
-                          }
-                          className={cn(
-                            "flex size-8 items-center justify-center rounded-full border text-xs font-medium transition-colors",
-                            on
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "bg-background text-muted-foreground hover:bg-muted",
-                          )}
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => update(row.productId, { daysOfWeek: EVERY_DAY })}
                         >
-                          {letter}
+                          Select all
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
+                    <div
+                      role="group"
+                      aria-label={`Days of week for ${row.name} — highlighted days are on. Tap to skip a day.`}
+                      className="flex gap-1"
+                    >
+                      {DAY_LETTERS.map((letter, day) => {
+                        const on = ((row.daysOfWeek >> day) & 1) === 1;
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            aria-pressed={on}
+                            aria-label={`${DAY_NAMES[day]}${on ? " (on)" : " (off)"}`}
+                            title={`${DAY_NAMES[day]} — ${on ? "on, tap to skip" : "off, tap to add"}`}
+                            onClick={() =>
+                              update(row.productId, {
+                                daysOfWeek: row.daysOfWeek ^ (1 << day),
+                              })
+                            }
+                            className={cn(
+                              "flex size-8 items-center justify-center rounded-full border text-xs font-medium transition-colors",
+                              on
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-dashed bg-background text-muted-foreground hover:bg-muted",
+                            )}
+                          >
+                            {letter}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
