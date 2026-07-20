@@ -12,7 +12,7 @@ import { Readable } from "node:stream";
 import { chain } from "stream-chain";
 import { parser } from "stream-json";
 import { streamArray } from "stream-json/streamers/stream-array.js";
-import { and, inArray, like, or, sql } from "drizzle-orm";
+import { and, getTableColumns, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { lnhpdIndex, lnhpdSyncState } from "@/db/schema";
 import { matchNutrient } from "@/data/nutrients";
@@ -20,6 +20,19 @@ import { parseUnit } from "@/lib/planner";
 import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
 const BASE = "https://health-products.canada.ca/api/natural-licences";
+
+/**
+ * SQLite refuses a statement with more than SQLITE_MAX_VARIABLE_NUMBER bound
+ * parameters (32,766) — "too many SQL variables". A multi-row insert binds one
+ * parameter per column per row, so the batch size has to account for how wide
+ * the table is. Derived from the actual column count rather than hard-coded,
+ * so widening the table can't silently push us back over the cap.
+ */
+const SQLITE_MAX_VARIABLES = 32_766;
+export const LNHPD_COLUMN_COUNT = Object.keys(getTableColumns(lnhpdIndex)).length;
+export const LNHPD_INSERT_BATCH = Math.floor(
+  (SQLITE_MAX_VARIABLES * 0.9) / LNHPD_COLUMN_COUNT,
+);
 
 /** One row of the product-licence dump — every field it gives us. */
 interface LnhpdLicenceRecord {
@@ -104,6 +117,9 @@ export function startLnhpdSync(): LnhpdSyncProgress {
     })
     .catch((e: unknown) => {
       syncJob.error = e instanceof Error ? e.message : "unknown error";
+      // The client only sees the message; keep the stack on the server so a
+      // failed sync is actually diagnosable from the container logs.
+      console.error("[vitaplan] LNHPD sync failed after", syncJob.count, "rows:", e);
     })
     .finally(() => {
       syncJob.running = false;
@@ -160,7 +176,14 @@ export async function syncLnhpdIndex(
       await db.delete(lnhpdIndex);
       cleared = true;
     }
-    await db.insert(lnhpdIndex).values(batch.splice(0)).onConflictDoNothing();
+    // Chunked so a single statement never exceeds SQLite's parameter cap.
+    const rows = batch.splice(0);
+    for (let i = 0; i < rows.length; i += LNHPD_INSERT_BATCH) {
+      await db
+        .insert(lnhpdIndex)
+        .values(rows.slice(i, i + LNHPD_INSERT_BATCH))
+        .onConflictDoNothing();
+    }
   };
 
   for await (const item of pipeline) {
