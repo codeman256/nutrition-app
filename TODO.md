@@ -88,7 +88,8 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [ ] **R4 — Login rate limiting.**
 - [x] **F3 — Printable week view** of the regimen (`/regimen/print`, print CSS
   hides the app chrome).
-- [~] **Q1 — Playwright e2e suite** in CI.
+- [x] **Q1 — Playwright e2e suite** in CI (smoke: health probe, auth redirect,
+  sign-up → consent → profile). Runs against `next dev` on a throwaway DB.
 - [ ] **Q2 — Automated axe/Lighthouse a11y pass** in CI.
 
 ## Done
