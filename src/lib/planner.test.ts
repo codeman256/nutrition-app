@@ -47,9 +47,17 @@ describe("IU conversions", () => {
     expect(toCanonicalAmount(vitE, 100, "IU")).toBeCloseTo(67);
   });
 
-  it("converts vitamin A IU by form", () => {
+  it("converts vitamin A IU by form (both 0.3 IU->RAE)", () => {
     expect(toCanonicalAmount(vitA, 10000, "IU", "retinol")).toBeCloseTo(3000);
-    expect(toCanonicalAmount(vitA, 10000, "IU", "beta_carotene")).toBeCloseTo(1500);
+    expect(toCanonicalAmount(vitA, 10000, "IU", "beta_carotene")).toBeCloseTo(3000);
+  });
+
+  it("converts vitamin A mass by form (beta-carotene mcg -> mcg RAE)", () => {
+    // Centrum: retinyl 300 mcg RAE stays 300; beta-carotene 900 mcg -> 450 RAE
+    expect(toCanonicalAmount(vitA, 300, "mcg", "retinol")).toBeCloseTo(300);
+    expect(toCanonicalAmount(vitA, 900, "mcg", "beta_carotene")).toBeCloseTo(450);
+    // unknown form defaults to 1 (treated as already-RAE)
+    expect(toCanonicalAmount(vitA, 500, "mcg")).toBeCloseTo(500);
   });
 
   it("rejects IU for nutrients without IU factors", () => {

@@ -60,7 +60,15 @@ export function toCanonicalAmount(
   }
 
   const inMcg = amount * MASS_IN_MCG[unit];
-  return inMcg / MASS_IN_MCG[nutrient.unit];
+  const canonical = inMcg / MASS_IN_MCG[nutrient.unit];
+  // apply a form multiplier for mass units too (e.g. mcg β-carotene → mcg RAE)
+  const massFactors = nutrient.massFormFactors;
+  if (massFactors) {
+    const keyed = form ? massFactors[form.toLowerCase()] : undefined;
+    const factor = keyed ?? massFactors.default ?? 1;
+    return canonical * factor;
+  }
+  return canonical;
 }
 
 /* ------------------------------------------------------------------ */

@@ -3,7 +3,7 @@
  * Docs: https://dsld.od.nih.gov/api-guide — free, no API key.
  */
 
-import { matchNutrient } from "@/data/nutrients";
+import { guessForm, matchNutrient } from "@/data/nutrients";
 import { parseUnit } from "@/lib/planner";
 import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
@@ -71,17 +71,6 @@ interface DsldLabel {
   }[];
 }
 
-function guessForm(name: string, formNames: string[]): string | null {
-  const text = [name, ...formNames].join(" ").toLowerCase();
-  if (text.includes("cholecalciferol") || /\bd3\b/.test(text)) return "d3";
-  if (text.includes("ergocalciferol") || /\bd2\b/.test(text)) return "d2";
-  if (/\bdl-/.test(text)) return "synthetic";
-  if (/\bd-alpha\b|\bd-α\b/.test(text)) return "natural";
-  if (text.includes("beta-carotene") || text.includes("beta carotene")) return "beta_carotene";
-  if (text.includes("retinyl") || text.includes("retinol")) return "retinol";
-  return null;
-}
-
 export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
   const res = await fetch(`${BASE}/label/${encodeURIComponent(labelId)}`, {
     signal: AbortSignal.timeout(15_000),
@@ -106,7 +95,7 @@ export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
       nutrientId: matchNutrient(displayName)?.id ?? null,
       amountPerServing: q.quantity,
       unit: q.unit,
-      form: guessForm(name, formNames),
+      form: guessForm(displayName),
     });
   }
 

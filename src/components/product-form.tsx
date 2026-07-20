@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload } from "lucide-react";
-import { NUTRIENTS, matchNutrient } from "@/data/nutrients";
+import { Info } from "lucide-react";
+import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
 import { saveProduct, type SaveProductInput } from "@/lib/actions/products";
 import type { IngredientDraft, ProductDraft } from "@/lib/lookup/types";
 import { Button } from "@/components/ui/button";
@@ -151,9 +152,11 @@ export function ProductForm({
           Rows matched to a tracked nutrient count toward your daily totals;
           set the nutrient to &quot;Not tracked&quot; for herbs and blends.
         </p>
-        {ingredients.map((row, i) => (
+        {ingredients.map((row, i) => {
+          const def = row.nutrientId ? NUTRIENT_BY_ID.get(row.nutrientId) : null;
+          return (
+          <div key={i} className="flex flex-col gap-1.5 rounded-md border p-2">
           <div
-            key={i}
             className="grid grid-cols-[1fr_5.5rem_5rem_auto] items-end gap-2 sm:grid-cols-[1fr_11rem_6rem_5.5rem_auto]"
           >
             <div className="flex flex-col gap-1">
@@ -166,9 +169,11 @@ export function ProductForm({
                 placeholder="Vitamin D3 (cholecalciferol)"
                 onChange={(e) => {
                   const label = e.target.value;
+                  const matched = matchNutrient(label);
                   updateIngredient(i, {
                     label,
-                    nutrientId: matchNutrient(label)?.id ?? row.nutrientId,
+                    nutrientId: matched?.id ?? row.nutrientId,
+                    form: guessForm(label) ?? row.form,
                   });
                 }}
               />
@@ -240,7 +245,38 @@ export function ProductForm({
               <Trash2 className="size-4" aria-hidden="true" />
             </Button>
           </div>
-        ))}
+
+          {def?.forms && (
+            <div className="flex flex-col gap-1 sm:max-w-xs">
+              <Label htmlFor={`ing-form-${i}`} className="text-xs">
+                Form
+              </Label>
+              <Select
+                value={row.form ?? def.forms[0].value}
+                onValueChange={(form) => updateIngredient(i, { form })}
+              >
+                <SelectTrigger id={`ing-form-${i}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {def.forms.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {def?.note && (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>{def.note}</span>
+            </p>
+          )}
+          </div>
+          );
+        })}
         <Button
           type="button"
           variant="outline"
