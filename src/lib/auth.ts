@@ -40,12 +40,31 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  // Self-hosted: the app can be reached via LAN IP, hostname, or a reverse
-  // proxy domain. Trust whatever origin the deployment declares.
-  trustedOrigins: (process.env.TRUSTED_ORIGINS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+  // Self-hosted: the app is reached via LAN IP, hostname, or a reverse-proxy
+  // domain that the operator can't know at build time. Auto-trust the
+  // origin the request was actually served on (derived from the Host /
+  // X-Forwarded-* headers, NOT the caller-supplied Origin header) so a
+  // single-origin deployment needs zero config. A cross-site CSRF attempt
+  // carries the attacker's Origin, which won't match this, so it's still
+  // rejected. TRUSTED_ORIGINS only matters when the app is reached from a
+  // *different* origin than the one serving it.
+  trustedOrigins: (request) => {
+    const configured = (process.env.TRUSTED_ORIGINS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // `request` is undefined during init / direct auth.api calls
+    const host =
+      request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
+    if (host) {
+      const proto =
+        request?.headers.get("x-forwarded-proto") ??
+        (process.env.USE_SECURE_COOKIES === "true" ? "https" : "http");
+      const selfOrigin = `${proto}://${host}`;
+      if (!configured.includes(selfOrigin)) configured.push(selfOrigin);
+    }
+    return configured;
+  },
   advanced: {
     // Secure-only cookies break login on plain-HTTP LAN deployments (the
     // normal unraid setup). Opt in via USE_SECURE_COOKIES=true behind HTTPS.
