@@ -390,7 +390,16 @@ export function ProfileForm({ initial }: { initial: ProfileFormValues }) {
               <div>
                 <p className="text-2xl font-semibold">{calories.toLocaleString()}</p>
                 <p className="text-muted-foreground">
-                  est. daily calories (Mifflin-St Jeor)
+                  est. daily calories (
+                  <a
+                    href="https://pubmed.ncbi.nlm.nih.gov/2305711/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    Mifflin-St Jeor
+                  </a>
+                  )
                 </p>
               </div>
             )}

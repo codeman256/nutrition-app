@@ -339,7 +339,7 @@ export function DashboardView({
                       )}
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {row.ul !== null ? scaled(row.ul) : "none set"}
+                      {row.ul !== null ? scaled(row.ul) : "—"}
                     </TableCell>
                     <TableCell className="border-r text-muted-foreground">
                       {unit}
@@ -370,11 +370,20 @@ export function DashboardView({
       )}
 
       <p className="text-xs text-muted-foreground">
-        * <HeadWithHelp label="AI" help="Adequate Intake — used when there isn't enough evidence to set an RDA." />{" "}
-        · Targets and limits are the NIH/NASEM values for your profile (age,
-        sex, life stage); click a nutrient name for its NIH fact sheet.
-        Magnesium&apos;s limit is for supplements only; sodium&apos;s is the
-        CDRR guideline.
+        {plan.rows.some((r) => r.isAI) && (
+          <>
+            * <HeadWithHelp label="AI" help="Adequate Intake — used when there isn't enough evidence to set an RDA." />{" "}
+            ·{" "}
+          </>
+        )}
+        Targets and limits are the NIH/NASEM values for your profile (age, sex,
+        life stage); click a nutrient name for its NIH fact sheet.
+        {plan.rows.some((r) => r.nutrient.id === "magnesium") && (
+          <> Magnesium&apos;s limit is for supplements only.</>
+        )}
+        {plan.rows.some((r) => r.nutrient.id === "sodium") && (
+          <> Sodium&apos;s limit is the CDRR guideline.</>
+        )}
       </p>
 
       {/* What-if — moved to the bottom (D2) */}
