@@ -286,55 +286,30 @@ export function ProductForm({
             }
           >
           {reordering && (
-            <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="flex items-center gap-1 text-muted-foreground">
               <GripVertical className="size-4 cursor-grab" aria-hidden="true" />
-              <span className="text-xs">Position</span>
-              <Input
-                type="number"
-                min={1}
-                max={ingredients.length}
-                aria-label={`Position of ${row.label || "ingredient"}`}
-                defaultValue={i + 1}
-                key={`pos-${i}-${ingredients.length}`}
-                className="h-8 w-16"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                onBlur={(e) => {
-                  const to = Number(e.target.value) - 1;
-                  if (Number.isInteger(to)) moveIngredient(i, to);
-                }}
-              />
-              <div className="flex gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  disabled={i === 0}
-                  aria-label="Move up"
-                  onClick={() => moveIngredient(i, i - 1)}
-                >
-                  <ArrowUp className="size-4" aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  disabled={i === ingredients.length - 1}
-                  aria-label="Move down"
-                  onClick={() => moveIngredient(i, i + 1)}
-                >
-                  <ArrowDown className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-              <span className="ml-auto truncate text-xs font-medium text-foreground">
-                {row.label || "(unnamed)"}
-              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                disabled={i === 0}
+                aria-label="Move up"
+                onClick={() => moveIngredient(i, i - 1)}
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                disabled={i === ingredients.length - 1}
+                aria-label="Move down"
+                onClick={() => moveIngredient(i, i + 1)}
+              >
+                <ArrowDown className="size-4" aria-hidden="true" />
+              </Button>
             </div>
           )}
           <div
