@@ -72,6 +72,7 @@ export default async function ProductsPage() {
                 imageUrl: p.imageUrl,
                 imagePath: p.imagePath,
                 pillColor: p.pillColor,
+                pillStyle: p.pillStyle,
                 trackedCount: p.trackedCount,
                 totalCount: p.totalCount,
               }}

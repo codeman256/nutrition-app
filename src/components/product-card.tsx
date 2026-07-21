@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, Pencil } from "lucide-react";
 import { deleteProduct } from "@/lib/actions/products";
-import { pillColorClass } from "@/data/pill-colors";
-import { cn } from "@/lib/utils";
+import { StoredPill } from "@/components/pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,7 @@ export interface ProductCardData {
   imageUrl: string | null;
   imagePath: string | null;
   pillColor: string | null;
+  pillStyle: string | null;
   trackedCount: number;
   totalCount: number;
 }
@@ -51,12 +51,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         ) : (
           <div
             aria-hidden="true"
-            className={cn(
-              "flex size-20 shrink-0 items-center justify-center rounded-md border text-2xl",
-              pillColorClass(product.pillColor),
-            )}
+            className="flex size-20 shrink-0 items-center justify-center rounded-md border bg-muted/40"
           >
-            💊
+            <StoredPill pillStyle={product.pillStyle} pillColor={product.pillColor} />
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">

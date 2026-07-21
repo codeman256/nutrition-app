@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { EVERY_DAY, activeDayCount } from "@/lib/planner";
 import { saveRegimen, type RegimenItemUpdate } from "@/lib/actions/regimen";
-import { pillColorClass } from "@/data/pill-colors";
+import { StoredPill } from "@/components/pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ export interface RegimenProductRow {
   servingSize: string | null;
   imageSrc: string | null;
   pillColor: string | null;
+  pillStyle: string | null;
   /** null when the product isn't in the regimen */
   servingsPerDay: number | null;
   daysOfWeek: number;
@@ -93,12 +94,13 @@ export function RegimenEditor({ initial }: { initial: RegimenProductRow[] }) {
                 ) : (
                   <div
                     aria-hidden="true"
-                    className={cn(
-                      "flex size-12 shrink-0 items-center justify-center rounded-md border",
-                      pillColorClass(row.pillColor),
-                    )}
+                    className="flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted/40"
                   >
-                    💊
+                    <StoredPill
+                      pillStyle={row.pillStyle}
+                      pillColor={row.pillColor}
+                      className="max-w-9"
+                    />
                   </div>
                 )}
                 <div className="min-w-0">

@@ -44,6 +44,7 @@ export default async function EditProductPage({
     servingsPerContainer: product.servingsPerContainer,
     imageUrl: product.imageUrl,
     pillColor: product.pillColor,
+    pillStyle: product.pillStyle,
     source: product.source,
     ingredients: ingredients.map((ing) => ({
       label: ing.label,

@@ -30,6 +30,7 @@ export default async function RegimenPage() {
         servingSize: p.servingSize,
         imageSrc: p.imagePath ? `/api/uploads/${p.imagePath}` : p.imageUrl,
         pillColor: p.pillColor,
+        pillStyle: p.pillStyle,
         servingsPerDay: item?.servingsPerDay ?? null,
         daysOfWeek: item?.daysOfWeek ?? EVERY_DAY,
       };

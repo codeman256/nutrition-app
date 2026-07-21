@@ -118,7 +118,8 @@ export const products = sqliteTable(
     }).notNull(),
     imageUrl: text("image_url"), // remote image imported from DSLD/OFF
     imagePath: text("image_path"), // user-uploaded photo, relative to uploads dir
-    pillColor: text("pill_color"), // preset colour key for the placeholder pill
+    pillColor: text("pill_color"), // legacy single-colour key (kept for fallback)
+    pillStyle: text("pill_style"), // JSON: { shape, size, color, color2 } // preset colour key for the placeholder pill
     notes: text("notes"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

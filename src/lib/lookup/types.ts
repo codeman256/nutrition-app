@@ -23,6 +23,8 @@ export interface ProductDraft {
   servingsPerContainer?: number | null;
   imageUrl?: string | null;
   pillColor?: string | null;
+  /** JSON-encoded PillAppearance for the placeholder pill */
+  pillStyle?: string | null;
   source: "dsld" | "off" | "lnhpd" | "ocr" | "manual";
   ingredients: IngredientDraft[];
 }
