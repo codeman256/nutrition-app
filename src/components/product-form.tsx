@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, Info } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  Upload,
+  Info,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from "lucide-react";
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
 import { resolvePill, serializePill } from "@/data/pills";
 import { Pill } from "@/components/pill";
@@ -50,11 +59,23 @@ export function ProductForm({
     resolvePill(draft.pillStyle, draft.pillColor),
   );
   const [busy, setBusy] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const dragIndex = useRef<number | null>(null);
 
   function updateIngredient(index: number, patch: Partial<IngredientDraft>) {
     setIngredients((rows) =>
       rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
     );
+  }
+
+  function moveIngredient(from: number, to: number) {
+    setIngredients((rows) => {
+      if (from === to || to < 0 || to >= rows.length) return rows;
+      const next = rows.slice();
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
   }
 
   async function handleUpload(file: File) {
@@ -190,17 +211,98 @@ export function ProductForm({
       </div>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-sm font-medium">
-          Ingredients per serving
-        </legend>
+        <div className="flex items-center justify-between gap-2">
+          <legend className="text-sm font-medium">Ingredients per serving</legend>
+          {ingredients.length > 1 && (
+            <Button
+              type="button"
+              variant={reordering ? "default" : "outline"}
+              size="sm"
+              className="gap-1"
+              aria-pressed={reordering}
+              onClick={() => setReordering((v) => !v)}
+            >
+              <ArrowUpDown className="size-4" aria-hidden="true" />
+              {reordering ? "Done" : "Reorder"}
+            </Button>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">
-          Rows matched to a tracked nutrient count toward your daily totals;
-          set the nutrient to &quot;Not tracked&quot; for herbs and blends.
+          {reordering
+            ? "Drag the handle, use the arrows, or type a row's position to match your bottle's order."
+            : "Rows matched to a tracked nutrient count toward your daily totals; set the nutrient to “Not tracked” for herbs and blends."}
         </p>
         {ingredients.map((row, i) => {
           const def = row.nutrientId ? NUTRIENT_BY_ID.get(row.nutrientId) : null;
           return (
-          <div key={i} className="flex flex-col gap-1.5 rounded-md border p-2">
+          <div
+            key={i}
+            className="flex flex-col gap-1.5 rounded-md border p-2"
+            draggable={reordering}
+            onDragStart={reordering ? () => (dragIndex.current = i) : undefined}
+            onDragOver={reordering ? (e) => e.preventDefault() : undefined}
+            onDrop={
+              reordering
+                ? (e) => {
+                    e.preventDefault();
+                    if (dragIndex.current !== null) moveIngredient(dragIndex.current, i);
+                    dragIndex.current = null;
+                  }
+                : undefined
+            }
+          >
+          {reordering && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <GripVertical className="size-4 cursor-grab" aria-hidden="true" />
+              <span className="text-xs">Position</span>
+              <Input
+                type="number"
+                min={1}
+                max={ingredients.length}
+                aria-label={`Position of ${row.label || "ingredient"}`}
+                defaultValue={i + 1}
+                key={`pos-${i}-${ingredients.length}`}
+                className="h-8 w-16"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onBlur={(e) => {
+                  const to = Number(e.target.value) - 1;
+                  if (Number.isInteger(to)) moveIngredient(i, to);
+                }}
+              />
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={i === 0}
+                  aria-label="Move up"
+                  onClick={() => moveIngredient(i, i - 1)}
+                >
+                  <ArrowUp className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={i === ingredients.length - 1}
+                  aria-label="Move down"
+                  onClick={() => moveIngredient(i, i + 1)}
+                >
+                  <ArrowDown className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+              <span className="ml-auto truncate text-xs font-medium text-foreground">
+                {row.label || "(unnamed)"}
+              </span>
+            </div>
+          )}
           <div
             className="grid grid-cols-[1fr_5.5rem_5rem_auto] items-end gap-2 sm:grid-cols-[1fr_11rem_6rem_5.5rem_auto]"
           >
