@@ -12,6 +12,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
 import { resolvePill, serializePill } from "@/data/pills";
@@ -76,6 +78,36 @@ export function ProductForm({
       next.splice(to, 0, item);
       return next;
     });
+  }
+
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+
+  async function addFromPhoto(file: File) {
+    setOcrBusy(true);
+    setOcrProgress(0);
+    try {
+      const { recognizeLabel } = await import("@/lib/ocr-run");
+      const found = await recognizeLabel(file, setOcrProgress);
+      if (found.length === 0) {
+        toast.warning(
+          "Couldn't read any ingredient lines. Try a sharper, well-lit photo of the Supplement Facts panel.",
+        );
+        return;
+      }
+      setIngredients((rows) => {
+        // drop a single empty starter row so the photo's rows aren't buried
+        const kept = rows.filter(
+          (r) => r.label.trim() !== "" || r.amountPerServing > 0,
+        );
+        return [...kept, ...found];
+      });
+      toast.success(`Added ${found.length} ingredient line(s) — review and correct them.`);
+    } catch {
+      toast.error("Text recognition failed. Add the rows manually.");
+    } finally {
+      setOcrBusy(false);
+    }
   }
 
   async function handleUpload(file: File) {
@@ -424,20 +456,57 @@ export function ProductForm({
           </div>
           );
         })}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start gap-1"
-          onClick={() =>
-            setIngredients((rows) => [
-              ...rows,
-              { label: "", nutrientId: null, amountPerServing: 0, unit: "mg" },
-            ])
-          }
-        >
-          <Plus className="size-4" aria-hidden="true" /> Add ingredient
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() =>
+              setIngredients((rows) => [
+                ...rows,
+                { label: "", nutrientId: null, amountPerServing: 0, unit: "mg" },
+              ])
+            }
+          >
+            <Plus className="size-4" aria-hidden="true" /> Add ingredient
+          </Button>
+
+          {/* In-form OCR: read a label photo and append its rows. Handy for
+              products (e.g. enzyme blends) whose ingredients don't come from a
+              database lookup. Runs locally; the photo never leaves the device. */}
+          <Button asChild variant="outline" size="sm" className="gap-1" disabled={ocrBusy}>
+            <label className="cursor-pointer">
+              {ocrBusy ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Reading… {ocrProgress}%
+                </>
+              ) : (
+                <>
+                  <Camera className="size-4" aria-hidden="true" /> Add from label photo
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                disabled={ocrBusy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void addFromPhoto(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          &quot;Add from label photo&quot; reads the Supplement Facts panel on
+          your device and appends what it finds — useful when a lookup misses
+          ingredients like digestive enzymes.
+        </p>
       </fieldset>
 
       <div className="flex gap-2">

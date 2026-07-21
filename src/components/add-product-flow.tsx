@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import type { ProductDraft, SearchHit } from "@/lib/lookup/types";
-import { parseLabelText } from "@/lib/ocr-parse";
+import { recognizeLabel } from "@/lib/ocr-run";
 import { ProductForm } from "@/components/product-form";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Button } from "@/components/ui/button";
@@ -437,48 +437,6 @@ function SearchTab({
   );
 }
 
-/**
- * Preprocess a label photo for OCR: downscale very large images, convert to
- * grayscale, and apply a light contrast stretch so the Supplement Facts text
- * separates from the background. Runs entirely in the browser.
- */
-async function preprocessForOcr(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const maxDim = 2000;
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return file;
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close?.();
-
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  // grayscale + find min/max for a contrast stretch
-  let min = 255;
-  let max = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-    d[i] = d[i + 1] = d[i + 2] = g;
-    if (g < min) min = g;
-    if (g > max) max = g;
-  }
-  const range = Math.max(1, max - min);
-  for (let i = 0; i < d.length; i += 4) {
-    const v = ((d[i] - min) / range) * 255;
-    d[i] = d[i + 1] = d[i + 2] = v;
-  }
-  ctx.putImageData(img, 0, 0);
-
-  return new Promise<Blob>((resolve) =>
-    canvas.toBlob((b) => resolve(b ?? file), "image/png"),
-  );
-}
-
 function PhotoTab({ onDraft }: { onDraft: (d: ProductDraft) => void }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -487,19 +445,7 @@ function PhotoTab({ onDraft }: { onDraft: (d: ProductDraft) => void }) {
     setBusy(true);
     setProgress(0);
     try {
-      const prepared = await preprocessForOcr(file).catch(() => file);
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng", 1, {
-        logger: (m) => {
-          if (m.status === "recognizing text") setProgress(Math.round(m.progress * 100));
-        },
-      });
-      const {
-        data: { text },
-      } = await worker.recognize(prepared);
-      await worker.terminate();
-
-      const ingredients = parseLabelText(text);
+      const ingredients = await recognizeLabel(file, setProgress);
       if (ingredients.length === 0) {
         toast.warning(
           "Couldn't read any ingredient lines — opening a blank form. Try a sharper, well-lit photo of the Supplement Facts panel.",
