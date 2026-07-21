@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
 import { resolvePill, serializePill } from "@/data/pills";
-import { Pill } from "@/components/pill";
 import { PillDesigner } from "@/components/pill-designer";
 import { saveProduct, type SaveProductInput } from "@/lib/actions/products";
 import type { IngredientDraft, ProductDraft } from "@/lib/lookup/types";
@@ -154,23 +153,7 @@ export function ProductForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <div className="flex items-start gap-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt=""
-            className="size-24 shrink-0 rounded-lg border object-cover"
-          />
-        ) : (
-          <div
-            aria-hidden="true"
-            className="flex size-24 shrink-0 items-center justify-center rounded-lg border bg-muted/40"
-          >
-            <Pill appearance={pill} />
-          </div>
-        )}
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="p-name">Product name</Label>
             <Input id="p-name" required value={name} onChange={(e) => setName(e.target.value)} />
@@ -217,30 +200,56 @@ export function ProductForm({
               />
             </div>
           </div>
-        </div>
       </div>
 
-      {!imageSrc && (
+      {/* Appearance: your own bottle photo on the left, the pill designer on
+          the right — pick either. A photo, if added, is shown instead. */}
+      <div className="grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label>Pill look (used when there&apos;s no photo)</Label>
-          <PillDesigner value={pill} onChange={setPill} />
+          <Label htmlFor="p-photo">Photo of your bottle</Label>
+          <p className="text-xs text-muted-foreground">
+            Upload your own photo. If you add one it&apos;s shown instead of the
+            pill.
+          </p>
+          {imageSrc && (
+            <div className="flex items-start gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageSrc}
+                alt=""
+                className="size-24 rounded-lg border object-cover"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setImagePath(null)}
+              >
+                Remove
+              </Button>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              id="p-photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="max-w-xs"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleUpload(file);
+              }}
+            />
+            <Upload className="size-4 text-muted-foreground" aria-hidden="true" />
+          </div>
         </div>
-      )}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="p-photo">Your photo of the bottle (optional)</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            id="p-photo"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="max-w-xs"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleUpload(file);
-            }}
-          />
-          <Upload className="size-4 text-muted-foreground" aria-hidden="true" />
+        <div className="flex flex-col gap-2">
+          <Label>Pill designer</Label>
+          <p className="text-xs text-muted-foreground">
+            Shown when there&apos;s no photo.
+          </p>
+          <PillDesigner value={pill} onChange={setPill} />
         </div>
       </div>
 

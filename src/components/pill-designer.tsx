@@ -115,51 +115,55 @@ export function PillDesigner({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label className="text-xs">{canSplit ? "Left / main colour" : "Colour"}</Label>
-        <div className="flex flex-wrap gap-2">
-          {PILL_COLORS.map((c) => (
-            <Swatch
-              key={c.key}
-              color={c.key}
-              label={c.label}
-              active={value.color === c.key}
-              onClick={() => set({ color: c.key })}
-            />
-          ))}
-        </div>
-      </div>
-
-      {canSplit && (
+      {/* For a capsule the two halves sit side by side — left colours on the
+          left, right-half colours on the right — to mirror the pill itself. */}
+      <div className={cn("grid gap-4", canSplit && "sm:grid-cols-2")}>
         <div className="flex flex-col gap-2">
-          <Label className="text-xs">Right half colour</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={value.color2 === null}
-              title="Same as main colour"
-              onClick={() => set({ color2: null })}
-              className={cn(
-                "rounded-md border px-2.5 py-1 text-xs transition",
-                value.color2 === null
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "hover:bg-muted",
-              )}
-            >
-              Same
-            </button>
+          <Label className="text-xs">{canSplit ? "Left half" : "Colour"}</Label>
+          <div className="flex flex-wrap gap-2">
             {PILL_COLORS.map((c) => (
               <Swatch
                 key={c.key}
                 color={c.key}
                 label={c.label}
-                active={value.color2 === c.key}
-                onClick={() => set({ color2: c.key })}
+                active={value.color === c.key}
+                onClick={() => set({ color: c.key })}
               />
             ))}
           </div>
         </div>
-      )}
+
+        {canSplit && (
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs">Right half</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                aria-pressed={value.color2 === null}
+                title="Same as the left half"
+                onClick={() => set({ color2: null })}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs transition",
+                  value.color2 === null
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "hover:bg-muted",
+                )}
+              >
+                Same
+              </button>
+              {PILL_COLORS.map((c) => (
+                <Swatch
+                  key={c.key}
+                  color={c.key}
+                  label={c.label}
+                  active={value.color2 === c.key}
+                  onClick={() => set({ color2: c.key })}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
