@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 
 const UNTRACKED = "__untracked__";
+// Radix Select can't use an empty-string value, so a blank unit is a sentinel.
+const NO_UNIT = "__no_unit__";
 
 export function ProductForm({
   draft,
@@ -400,8 +402,10 @@ export function ProductForm({
                 Unit
               </Label>
               <Select
-                value={row.unit}
-                onValueChange={(unit) => updateIngredient(i, { unit })}
+                value={row.unit || NO_UNIT}
+                onValueChange={(unit) =>
+                  updateIngredient(i, { unit: unit === NO_UNIT ? "" : unit })
+                }
               >
                 <SelectTrigger id={`ing-unit-${i}`} className="w-full">
                   <SelectValue />
@@ -411,6 +415,7 @@ export function ProductForm({
                   <SelectItem value="mg">mg</SelectItem>
                   <SelectItem value="g">g</SelectItem>
                   <SelectItem value="IU">IU</SelectItem>
+                  <SelectItem value={NO_UNIT}>— none</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -484,7 +489,7 @@ export function ProductForm({
                 </>
               ) : (
                 <>
-                  <Camera className="size-4" aria-hidden="true" /> Add from label photo
+                  <Camera className="size-4" aria-hidden="true" /> Add ingredients from photo
                 </>
               )}
               <input
@@ -503,8 +508,8 @@ export function ProductForm({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          &quot;Add from label photo&quot; reads the Supplement Facts panel on
-          your device and appends what it finds — useful when a lookup misses
+          &quot;Add ingredients from photo&quot; reads the Supplement Facts panel
+          on your device and appends what it finds — useful when a lookup misses
           ingredients like digestive enzymes.
         </p>
       </fieldset>

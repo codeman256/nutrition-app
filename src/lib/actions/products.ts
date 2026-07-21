@@ -14,14 +14,24 @@ export interface SaveProductInput extends ProductDraft {
   notes?: string | null;
 }
 
+/**
+ * Keep any ingredient that has a name. Amount and unit are optional: an
+ * ingredient with a unit we don't recognise (e.g. an enzyme's activity units)
+ * is still worth recording with a blank unit — it just won't count toward
+ * nutrient totals. Units we do recognise are normalised; the rest are blanked.
+ */
 function validIngredients(ingredients: IngredientDraft[]): IngredientDraft[] {
-  return ingredients.filter(
-    (ing) =>
-      ing.label.trim().length > 0 &&
-      Number.isFinite(ing.amountPerServing) &&
-      ing.amountPerServing > 0 &&
-      parseUnit(ing.unit) !== null,
-  );
+  return ingredients
+    .filter((ing) => ing.label.trim().length > 0)
+    .map((ing) => {
+      const parsed = parseUnit(ing.unit);
+      const amount = Number.isFinite(ing.amountPerServing)
+        ? Math.max(0, ing.amountPerServing)
+        : 0;
+      // A tracked nutrient with a blank unit keeps its id so the user can fix
+      // the unit later; the planner simply doesn't count it until then.
+      return { ...ing, amountPerServing: amount, unit: parsed ?? "" };
+    });
 }
 
 export async function saveProduct(input: SaveProductInput) {

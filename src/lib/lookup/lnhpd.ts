@@ -15,7 +15,7 @@ import { streamArray } from "stream-json/streamers/stream-array.js";
 import { and, getTableColumns, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { lnhpdIndex, lnhpdSyncState } from "@/db/schema";
-import { matchNutrient } from "@/data/nutrients";
+import { guessForm, matchNutrient } from "@/data/nutrients";
 import { parseUnit } from "@/lib/planner";
 import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
@@ -406,6 +406,10 @@ interface LnhpdIngredient {
   ingredient_name?: string;
   quantity?: number;
   quantity_unit_of_measure?: string;
+  potency_amount?: number;
+  potency_unit_of_measure?: string;
+  /** e.g. "Menaquinones-7" for a Vitamin K2 row, "Cholecalciferol" for D */
+  source_material?: string;
 }
 
 export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
@@ -427,22 +431,39 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   const ingredients: IngredientDraft[] = [];
   const seen = new Set<string>();
   for (const ing of body.data ?? []) {
-    const name = ing.ingredient_name ?? "";
-    if (!name || typeof ing.quantity !== "number" || ing.quantity <= 0) continue;
-    // Health Canada spells units out ("micrograms"); normalise to the canonical
-    // abbreviation so the amount matches the product form's unit picker.
-    const canonicalUnit = parseUnit(ing.quantity_unit_of_measure ?? "");
-    if (canonicalUnit === null) continue;
+    const name = ing.ingredient_name?.trim();
+    if (!name) continue;
+
+    // Keep every medicinal ingredient. Prefer the labelled quantity; fall back
+    // to the potency amount. Health Canada spells units out ("micrograms"), so
+    // normalise; if the unit isn't a mass/IU we understand (enzyme activity
+    // units, etc.), keep the ingredient but leave the unit blank.
+    let amount = typeof ing.quantity === "number" && ing.quantity > 0 ? ing.quantity : 0;
+    let unit = parseUnit(ing.quantity_unit_of_measure ?? "") ?? "";
+    if (amount === 0 && typeof ing.potency_amount === "number" && ing.potency_amount > 0) {
+      amount = ing.potency_amount;
+      unit = parseUnit(ing.potency_unit_of_measure ?? "") ?? "";
+    }
+
+    // The source material disambiguates a generic name: "Vitamin K2
+    // (Menaquinones-7)", "Vitamin D (Cholecalciferol)".
+    const source = ing.source_material?.trim();
+    const label =
+      source && !name.toLowerCase().includes(source.toLowerCase())
+        ? `${name} (${source})`
+        : name;
+
     // the API repeats an ingredient once per potency constituent
-    const key = `${name.toLowerCase()}|${ing.quantity}|${canonicalUnit}`;
+    const key = `${label.toLowerCase()}|${amount}|${unit}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
     ingredients.push({
-      label: name,
+      label,
       nutrientId: matchNutrient(name)?.id ?? null,
-      amountPerServing: ing.quantity,
-      unit: canonicalUnit,
-      form: null,
+      amountPerServing: amount,
+      unit,
+      form: guessForm(source ?? "") ?? guessForm(name) ?? null,
     });
   }
 

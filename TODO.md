@@ -22,24 +22,24 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [ ] **B4 — Barcode scan gives no confirmation.** Hard to capture; when it
   does, show the detected number in a field so the user can confirm it's
   right before/while looking up.
-- [ ] **B5 — Regimen weekday toggles look unselected.** All 7 days are ON by
+- [y] **B5 — Regimen weekday toggles look unselected.** All 7 days are ON by
   default when a product is enabled, but the styling made the user think they
   were off and they deselected. Make "all days" state obvious (e.g. an
   "Every day" chip / clearer active styling / helper text).
 
 ## Correctness (+ on-site education the user asked for)
 
-- [ ] **C1 — Vitamin A forms (RAE).** Beta-carotene supplement factor was
+- [y] **C1 — Vitamin A forms (RAE).** Beta-carotene supplement factor was
   wrong (0.15; should be **0.5** mcg RAE per mcg β-carotene, and **0.3** IU→
   RAE). Centrum lists "Vitamin A (acetate) 300 mcg RAE" + "Beta-Carotene
   900 mcg" — both are vitamin A but the β-carotene 900 mcg = 450 mcg RAE.
   Add a **form** picker for vitamin A rows and convert mass by form.
-- [ ] **C2 — DSLD multi-serving labels.** Import uses the first quantity row
+- [y] **C2 — DSLD multi-serving labels.** Import uses the first quantity row
   per ingredient; multi-serving-column labels may mis-import.
-- [ ] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
+- [y] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
   is in folic-acid mcg (×1.0). We compare to the UL 1:1 (safety-correct);
   document this and add a tip rather than double-count.
-- [ ] **C4 — Unit & acronym education.** On-site tips/definitions: mcg vs mg,
+- [y] **C4 — Unit & acronym education.** On-site tips/definitions: mcg vs mg,
   IU, RAE, DFE, RDA, AI, UL, DV — hover definitions for acronyms, and inline
   help on the product form for tricky rows (vitamin A, D, E, folate).
 
@@ -55,20 +55,21 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [x] **D4 — Source citations for status.** "300% over limit on B3 — says
   who?" Each nutrient name links to its NIH fact sheet.
 - [x] **D5 — Show % Daily Value** column alongside % target (was F1).
-- [ ] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
+- [y] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
   as the grid grows.
 
 ## Products
 
-- [ ] **P1 — Pill/bottle colour options** per product (a few preset colours
+- [y] **P1 — Pill/bottle colour options** per product (a few preset colours
   as an alternative to the 💊 default / uploaded photo).
-- [ ] **P2 — Barcode → no nutrients (Centrum via OFF).** Open Food Facts
+- [y] **P2 — Barcode → no nutrients (Centrum via OFF).** Open Food Facts
   returned the product but no amounts; NPN import worked. When a UPC hit has
   zero usable ingredients, tell the user and nudge toward NPN/label/manual.
 - [~] **F5 — OCR preprocessing** (grayscale/threshold before tesseract).
 - [ ] **F4 — Optional AI label reading** (Claude API, bring-your-own-key).
-- [ ] **F2 — Stock tracking** (days-remaining/low-stock from servings/container).
+- [y] **F2 — Stock tracking** (days-remaining/low-stock from servings/container).
 - [ ] **F6 — Adherence check-off.**
+- [ ] **F7 - bring in non medical ingredients** from api too.
 
 ## Admin & data
 
@@ -87,7 +88,7 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 
 - [x] **R2 — Docker HEALTHCHECK** for unraid's health indicator (hits
   `/api/health`, which pings the DB).
-- [ ] **R3 — arm64 image** (`linux/arm64` in buildx).
+- [y] **R3 — arm64 image** (`linux/arm64` in buildx).
 - [ ] **R4 — Login rate limiting.**
 - [x] **F3 — Printable week view** of the regimen (`/regimen/print`, print CSS
   hides the app chrome).
