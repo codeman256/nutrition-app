@@ -24,10 +24,27 @@ export type ParsedUnit = "mcg" | "mg" | "g" | "IU";
 /** Normalize the many ways labels spell units; null when unrecognized. */
 export function parseUnit(raw: string): ParsedUnit | null {
   const u = raw.trim().toLowerCase();
-  if (u === "mcg" || u === "µg" || u === "ug" || u === "mkg") return "mcg";
-  if (u === "mg") return "mg";
+  // Health Canada's API spells units out ("micrograms"), while labels/DSLD use
+  // abbreviations ("mcg"). Accept both, singular and plural.
+  if (
+    u === "mcg" ||
+    u === "µg" ||
+    u === "ug" ||
+    u === "mkg" ||
+    u === "microgram" ||
+    u === "micrograms"
+  )
+    return "mcg";
+  if (u === "mg" || u === "milligram" || u === "milligrams") return "mg";
   if (u === "g" || u === "gram" || u === "grams") return "g";
-  if (u === "iu" || u === "i.u." || u === "ui") return "IU";
+  if (
+    u === "iu" ||
+    u === "i.u." ||
+    u === "ui" ||
+    u === "international unit" ||
+    u === "international units"
+  )
+    return "IU";
   return null;
 }
 

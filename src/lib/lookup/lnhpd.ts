@@ -429,17 +429,19 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   for (const ing of body.data ?? []) {
     const name = ing.ingredient_name ?? "";
     if (!name || typeof ing.quantity !== "number" || ing.quantity <= 0) continue;
-    const unit = ing.quantity_unit_of_measure ?? "";
-    if (parseUnit(unit) === null) continue;
+    // Health Canada spells units out ("micrograms"); normalise to the canonical
+    // abbreviation so the amount matches the product form's unit picker.
+    const canonicalUnit = parseUnit(ing.quantity_unit_of_measure ?? "");
+    if (canonicalUnit === null) continue;
     // the API repeats an ingredient once per potency constituent
-    const key = `${name.toLowerCase()}|${ing.quantity}|${unit.toLowerCase()}`;
+    const key = `${name.toLowerCase()}|${ing.quantity}|${canonicalUnit}`;
     if (seen.has(key)) continue;
     seen.add(key);
     ingredients.push({
       label: name,
       nutrientId: matchNutrient(name)?.id ?? null,
       amountPerServing: ing.quantity,
-      unit,
+      unit: canonicalUnit,
       form: null,
     });
   }

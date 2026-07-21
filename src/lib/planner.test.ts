@@ -32,6 +32,16 @@ describe("unit parsing", () => {
     expect(parseUnit("g")).toBe("g");
     expect(parseUnit("bottles")).toBeNull();
   });
+
+  it("accepts Health Canada's spelled-out units", () => {
+    // The LNHPD API returns "micrograms"/"milligrams", not "mcg"/"mg" — these
+    // were silently dropped, so Biotin (NPN 80070102) imported empty.
+    expect(parseUnit("micrograms")).toBe("mcg");
+    expect(parseUnit("microgram")).toBe("mcg");
+    expect(parseUnit("milligrams")).toBe("mg");
+    expect(parseUnit("milligram")).toBe("mg");
+    expect(parseUnit("International Units")).toBe("IU");
+  });
 });
 
 describe("IU conversions", () => {
