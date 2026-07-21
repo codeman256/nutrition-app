@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, Info, Check } from "lucide-react";
@@ -33,11 +33,10 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const [name, setName] = useState(draft.name);
-  // The current name always appears in the picker, even after a manual edit.
-  const nameOptions = useMemo(() => {
-    const options = draft.nameOptions ?? [];
-    return options.includes(name) ? options : [name, ...options];
-  }, [draft.nameOptions, name]);
+  // The alternate-name picker lists only the source's own names. It never feeds
+  // the current typed value back in as an option — doing that churned the item
+  // set on every keystroke and broke editing the field.
+  const nameOptions = draft.nameOptions ?? [];
   const [brand, setBrand] = useState(draft.brand ?? "");
   const [servingSize, setServingSize] = useState(draft.servingSize ?? "");
   const [ingredients, setIngredients] = useState<IngredientDraft[]>(
@@ -125,9 +124,16 @@ export function ProductForm({
                   This licence covers {nameOptions.length} names — pick the one
                   on your bottle, or edit the field above.
                 </Label>
-                <Select value={name} onValueChange={setName}>
+                {/* Picker only writes into the name field; it never reads back
+                    from it, so typing in the field above is never overridden.
+                    Shows the placeholder once the name no longer matches an
+                    option (e.g. after a manual edit). */}
+                <Select
+                  value={nameOptions.includes(name) ? name : ""}
+                  onValueChange={setName}
+                >
                   <SelectTrigger id="p-name-alt" className="w-full">
-                    <SelectValue placeholder="Choose a name…" />
+                    <SelectValue placeholder="Choose a listed name…" />
                   </SelectTrigger>
                   <SelectContent>
                     {nameOptions.map((option) => (
