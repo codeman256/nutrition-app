@@ -38,17 +38,50 @@ export async function requireConsentedUser() {
 }
 
 /**
- * The instance admin is the first account created on this server. This is a
- * single-tenant, self-hosted app, so the owner is whoever set it up.
+ * The instance admin is the first account created on this server (single-tenant
+ * self-hosted app). New signups get `role = "admin"` stamped on the first
+ * account; for installs that predate that column, we fall back to the
+ * earliest-created user. {@link backfillAdminRole} persists that fallback.
  */
 export const getAdminUserId = cache(async (): Promise<string | null> => {
-  const rows = await db
+  const flagged = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.role, "admin"))
+    .orderBy(asc(user.createdAt), asc(user.id))
+    .limit(1);
+  if (flagged[0]) return flagged[0].id;
+
+  const earliest = await db
     .select({ id: user.id })
     .from(user)
     .orderBy(asc(user.createdAt), asc(user.id))
     .limit(1);
-  return rows[0]?.id ?? null;
+  return earliest[0]?.id ?? null;
 });
+
+/**
+ * One-time backfill for instances created before the `role` column: if nobody
+ * is flagged admin yet but users exist, stamp the earliest account. Safe to
+ * call repeatedly; does nothing once an admin is set.
+ */
+export async function backfillAdminRole(): Promise<void> {
+  const flagged = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.role, "admin"))
+    .limit(1);
+  if (flagged[0]) return;
+
+  const earliest = await db
+    .select({ id: user.id })
+    .from(user)
+    .orderBy(asc(user.createdAt), asc(user.id))
+    .limit(1);
+  if (earliest[0]) {
+    await db.update(user).set({ role: "admin" }).where(eq(user.id, earliest[0].id));
+  }
+}
 
 export const isAdmin = cache(async (userId: string): Promise<boolean> => {
   return (await getAdminUserId()) === userId;

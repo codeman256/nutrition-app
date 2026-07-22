@@ -127,7 +127,11 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   POST starts it and returns immediately; GET reports live row count.
 - [x] **R5 — Backup story** — README "Backup & restore" section + the A1
   in-browser flow.
-- [y] the first logged in user should be marked as admin in database and be the admin.
+- [x] **First account is stored admin.** The `user` table gained a `role`
+  column; a better-auth create hook stamps `role = "admin"` on the first
+  account, and a boot-time backfill flags the earliest user on instances that
+  predate the column. `getAdminUserId` prefers the flagged admin, falling back
+  to earliest-created.
   only the admin should see the admin page. there can be multi admins if i
   were to manually modify records in db.
 

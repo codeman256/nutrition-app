@@ -6,6 +6,12 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // Flag the first account as admin on instances created before the role column.
+  const { backfillAdminRole } = await import("@/lib/session");
+  await backfillAdminRole().catch(() => {
+    // best-effort; the earliest-user fallback still resolves admin meanwhile
+  });
+
   const { maybeAutoSyncLnhpd } = await import("@/lib/lookup/lnhpd");
   const check = () => {
     void maybeAutoSyncLnhpd().catch(() => {

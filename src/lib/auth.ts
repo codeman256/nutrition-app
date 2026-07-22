@@ -4,6 +4,7 @@ import path from "node:path";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 
 /**
@@ -68,6 +69,25 @@ export const auth = betterAuth({
     // no email sender configured, better-auth applies the change directly
     // (there's no verification step to gate it on a self-hosted instance).
     changeEmail: { enabled: true },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // The first account created on the instance is the owner/admin. The
+        // row is already inserted when this runs, so count === 1 means first.
+        after: async (createdUser) => {
+          const [{ n }] = await db
+            .select({ n: sql<number>`count(*)` })
+            .from(schema.user);
+          if (Number(n) === 1) {
+            await db
+              .update(schema.user)
+              .set({ role: "admin" })
+              .where(eq(schema.user.id, createdUser.id));
+          }
+        },
+      },
+    },
   },
   // Self-hosted: the app is reached via LAN IP, hostname, or a reverse-proxy
   // domain that the operator can't know at build time. Auto-trust the
