@@ -116,15 +116,18 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   barcode lives on the full label, not in search — so count/form/id are the
   workable differentiators.)
 - [ ] **F4 — Optional AI label reading** (Claude API, bring-your-own-key).
-- [x] **F2 — Stock tracking.** Product form takes "servings per container" and
-  "servings on hand" (stamped with an as-of date). The products page projects
-  days of supply left from that stock and the regimen's average daily
-  consumption (servings/day × active weekdays ÷ 7), shown as a badge on each
-  card — muted normally, amber when ≤14 days, red when out. Pure projection in
-  `lib/stock.ts`, unit-tested; no auto-decrement beyond elapsed time (adherence
-  is F6).
+- [x] **F2 — Stock tracking (unit-based).** Products carry a **Dosage** (X
+  tablets/capsules/etc., Y times per day/week/month), **qty in container**, and
+  **qty remaining** (stamped with an as-of date). The products page projects
+  days of supply from qty remaining ÷ the dose's units-per-day, shown as a badge
+  per card — muted, amber ≤14 days, red when out. Dose form, dose, container
+  size and pill shape prefill from the API (LNHPD `productdose`, DSLD
+  `servingSizes`/`netContents`); qty remaining defaults to a full container.
+  Pure projection in `lib/stock.ts`, unit-tested.
 - [ ] **F6 — Adherence check-off.**
-- [ ] **F7 - bring in non medical ingredients** from api too.
+- [x] **F7 — Non-medical ingredients from the API.** Imported from LNHPD
+  `nonmedicinalingredient` and DSLD `otheringredients` and shown as a plain
+  paragraph on the product form (stored, not tracked toward nutrients).
 - [ ] **F8 — Email setup (SMTP).** Optional outbound email so the app can send:
   email-verification / change-email confirmation (currently email changes apply
   directly with no sender), low-stock reminders (from F2), and other

@@ -42,10 +42,9 @@ export async function saveProduct(input: SaveProductInput) {
     return { error: "Add at least one ingredient with an amount and unit." };
   }
 
-  const stockServings =
-    typeof input.stockServings === "number" && input.stockServings >= 0
-      ? input.stockServings
-      : null;
+  const nonNeg = (n: number | null | undefined) =>
+    typeof n === "number" && n >= 0 ? n : null;
+  const unitsRemaining = nonNeg(input.unitsRemaining);
 
   const base = {
     name: input.name.trim(),
@@ -53,13 +52,18 @@ export async function saveProduct(input: SaveProductInput) {
     upc: input.upc?.replace(/\D/g, "") || null,
     npn: input.npn?.trim() || null,
     servingSize: input.servingSize?.trim() || null,
-    servingsPerContainer: input.servingsPerContainer ?? null,
     source: input.source,
     imageUrl: input.imageUrl || null,
     imagePath: input.imagePath || null,
     pillColor: input.pillColor || null,
     pillStyle: input.pillStyle || null,
-    stockServings,
+    doseForm: input.doseForm || null,
+    doseAmount: nonNeg(input.doseAmount),
+    doseFrequency: nonNeg(input.doseFrequency),
+    dosePeriod: input.dosePeriod || null,
+    containerQty: nonNeg(input.containerQty),
+    unitsRemaining,
+    nonMedicinalIngredients: input.nonMedicinalIngredients?.trim() || null,
     notes: input.notes?.trim() || null,
     updatedAt: new Date(),
   };
@@ -69,7 +73,7 @@ export async function saveProduct(input: SaveProductInput) {
     const owned = await db
       .select({
         id: products.id,
-        stockServings: products.stockServings,
+        unitsRemaining: products.unitsRemaining,
         stockUpdatedAt: products.stockUpdatedAt,
       })
       .from(products)
@@ -79,9 +83,9 @@ export async function saveProduct(input: SaveProductInput) {
     // Only restamp the "as of" date when the count actually changed, so an
     // unrelated edit doesn't reset the days-remaining projection.
     const stockUpdatedAt =
-      stockServings === null
+      unitsRemaining === null
         ? null
-        : stockServings !== owned[0].stockServings
+        : unitsRemaining !== owned[0].unitsRemaining
           ? new Date()
           : (owned[0].stockUpdatedAt ?? new Date());
     await db
@@ -97,7 +101,7 @@ export async function saveProduct(input: SaveProductInput) {
       .insert(products)
       .values({
         ...base,
-        stockUpdatedAt: stockServings === null ? null : new Date(),
+        stockUpdatedAt: unitsRemaining === null ? null : new Date(),
         userId: user.id,
         createdAt: new Date(),
       })

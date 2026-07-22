@@ -3,10 +3,9 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import { db } from "@/db";
-import { productIngredients, products, regimenItems } from "@/db/schema";
+import { productIngredients, products } from "@/db/schema";
 import { requireConsentedUser } from "@/lib/session";
-import { activeDayCount } from "@/lib/planner";
-import { dailyServings, projectStock } from "@/lib/stock";
+import { doseUnitsPerDay, projectStock } from "@/lib/stock";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/product-card";
 
@@ -15,26 +14,14 @@ export const metadata: Metadata = { title: "Products" };
 export default async function ProductsPage() {
   const { user } = await requireConsentedUser();
 
-  const [rows, regimen] = await Promise.all([
-    db
-      .select({
-        product: products,
-        ingredient: productIngredients,
-      })
-      .from(products)
-      .leftJoin(productIngredients, eq(productIngredients.productId, products.id))
-      .where(eq(products.userId, user.id)),
-    db.select().from(regimenItems).where(eq(regimenItems.userId, user.id)),
-  ]);
-
-  // Average servings consumed per day for each product in the regimen.
-  const perDayByProduct = new Map<number, number>();
-  for (const item of regimen) {
-    perDayByProduct.set(
-      item.productId,
-      dailyServings(item.servingsPerDay, activeDayCount(item.daysOfWeek)),
-    );
-  }
+  const rows = await db
+    .select({
+      product: products,
+      ingredient: productIngredients,
+    })
+    .from(products)
+    .leftJoin(productIngredients, eq(productIngredients.productId, products.id))
+    .where(eq(products.userId, user.id));
 
   const byId = new Map<
     number,
@@ -77,9 +64,9 @@ export default async function ProductsPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((p) => {
             const projection = projectStock(
-              p.stockServings,
+              p.unitsRemaining,
               p.stockUpdatedAt,
-              perDayByProduct.get(p.id) ?? 0,
+              doseUnitsPerDay(p.doseAmount, p.doseFrequency, p.dosePeriod),
             );
             return (
               <ProductCard

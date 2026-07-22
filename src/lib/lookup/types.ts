@@ -21,8 +21,15 @@ export interface ProductDraft {
   npn?: string | null;
   servingSize?: string | null;
   servingsPerContainer?: number | null;
-  /** servings currently on hand — user-entered, for stock tracking (F2) */
-  stockServings?: number | null;
+  /* Dosage & stock (unit-based). A unit is one tablet/capsule/etc. */
+  doseForm?: string | null;
+  doseAmount?: number | null;
+  doseFrequency?: number | null;
+  dosePeriod?: string | null;
+  containerQty?: number | null;
+  unitsRemaining?: number | null;
+  /** non-medicinal / "other" ingredients as a plain paragraph */
+  nonMedicinalIngredients?: string | null;
   imageUrl?: string | null;
   pillColor?: string | null;
   /** JSON-encoded PillAppearance for the placeholder pill */

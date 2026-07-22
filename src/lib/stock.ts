@@ -9,6 +9,8 @@
  * assuming the schedule is followed.
  */
 
+import { periodDays } from "@/data/dose-forms";
+
 const DAY_MS = 86_400_000;
 
 /** Average servings consumed per day: perServing × (active weekdays ÷ 7). */
@@ -17,31 +19,47 @@ export function dailyServings(servingsPerDay: number, activeDaysPerWeek: number)
   return (servingsPerDay * activeDaysPerWeek) / 7;
 }
 
+/**
+ * Units consumed per day from a product's label dose — doseAmount units taken
+ * doseFrequency times per period (day/week/month). E.g. 2 tablets once daily
+ * = 2 units/day; 1 tablet 3× daily = 3 units/day.
+ */
+export function doseUnitsPerDay(
+  doseAmount: number | null | undefined,
+  doseFrequency: number | null | undefined,
+  dosePeriod: string | null | undefined,
+): number {
+  const amount = doseAmount ?? 0;
+  const freq = doseFrequency ?? 0;
+  if (amount <= 0 || freq <= 0) return 0;
+  return (amount * freq) / periodDays(dosePeriod);
+}
+
 export interface StockProjection {
-  /** servings left now, never below 0 */
-  servingsRemaining: number;
-  /** whole days of supply left at the current schedule */
+  /** amount left now (units), never below 0 */
+  amountRemaining: number;
+  /** whole days of supply left at the current rate */
   daysRemaining: number;
 }
 
 /**
- * Project remaining stock. Returns null when we can't estimate — no stock
- * recorded, or nothing is being consumed (not in the regimen).
+ * Project remaining stock from an amount recorded at a moment and a
+ * consumption rate per day. Unit-agnostic (units or servings). Returns null
+ * when there's nothing recorded or nothing is being consumed.
  */
 export function projectStock(
-  stockServings: number | null | undefined,
-  stockUpdatedAt: Date | null | undefined,
+  amountOnHand: number | null | undefined,
+  asOf: Date | null | undefined,
   perDay: number,
   now: Date = new Date(),
 ): StockProjection | null {
-  if (stockServings == null || perDay <= 0) return null;
+  if (amountOnHand == null || perDay <= 0) return null;
 
-  const asOf = stockUpdatedAt ?? now;
-  const daysElapsed = Math.max(0, (now.getTime() - asOf.getTime()) / DAY_MS);
-  const consumed = daysElapsed * perDay;
-  const servingsRemaining = Math.max(0, stockServings - consumed);
-  const daysRemaining = Math.floor(servingsRemaining / perDay);
-  return { servingsRemaining, daysRemaining };
+  const from = asOf ?? now;
+  const daysElapsed = Math.max(0, (now.getTime() - from.getTime()) / DAY_MS);
+  const amountRemaining = Math.max(0, amountOnHand - daysElapsed * perDay);
+  const daysRemaining = Math.floor(amountRemaining / perDay);
+  return { amountRemaining, daysRemaining };
 }
 
 /** Days at or below this are "low stock" — time to reorder. */

@@ -19,6 +19,7 @@ import {
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
 import { iuEquivalent, parseUnit, toCanonicalAmount } from "@/lib/planner";
 import { resolvePill, serializePill } from "@/data/pills";
+import { DOSE_FORMS, DOSE_PERIODS, doseFormNoun } from "@/data/dose-forms";
 import { PillDesigner } from "@/components/pill-designer";
 import { saveProduct, type SaveProductInput } from "@/lib/actions/products";
 import type { IngredientDraft, ProductDraft } from "@/lib/lookup/types";
@@ -60,12 +61,18 @@ export function ProductForm({
   // set on every keystroke and broke editing the field.
   const nameOptions = draft.nameOptions ?? [];
   const [brand, setBrand] = useState(draft.brand ?? "");
-  const [servingSize, setServingSize] = useState(draft.servingSize ?? "");
-  const [servingsPerContainer, setServingsPerContainer] = useState(
-    draft.servingsPerContainer != null ? String(draft.servingsPerContainer) : "",
+  const numStr = (n: number | null | undefined) => (n != null ? String(n) : "");
+  const [doseAmount, setDoseAmount] = useState(numStr(draft.doseAmount));
+  const [doseForm, setDoseForm] = useState(draft.doseForm ?? "");
+  const [doseFrequency, setDoseFrequency] = useState(numStr(draft.doseFrequency));
+  const [dosePeriod, setDosePeriod] = useState(draft.dosePeriod ?? "day");
+  const [containerQty, setContainerQty] = useState(numStr(draft.containerQty));
+  const [unitsRemaining, setUnitsRemaining] = useState(
+    // default "on hand" to a full container when the API knew the size
+    numStr(draft.unitsRemaining ?? draft.containerQty),
   );
-  const [stockServings, setStockServings] = useState(
-    draft.stockServings != null ? String(draft.stockServings) : "",
+  const [nonMedicinal, setNonMedicinal] = useState(
+    draft.nonMedicinalIngredients ?? "",
   );
   const [ingredients, setIngredients] = useState<IngredientDraft[]>(
     draft.ingredients.length > 0
@@ -147,11 +154,17 @@ export function ProductForm({
       id: productId,
       name,
       brand: brand || null,
-      servingSize: servingSize || null,
-      servingsPerContainer: servingsPerContainer.trim()
-        ? Number(servingsPerContainer)
-        : null,
-      stockServings: stockServings.trim() ? Number(stockServings) : null,
+      // A human-readable serving string derived from the dose, for cards/regimen.
+      servingSize: doseAmount.trim()
+        ? `${Number(doseAmount)} ${doseFormNoun(doseForm || null, Number(doseAmount))}`
+        : (draft.servingSize ?? null),
+      doseForm: doseForm || null,
+      doseAmount: doseAmount.trim() ? Number(doseAmount) : null,
+      doseFrequency: doseFrequency.trim() ? Number(doseFrequency) : null,
+      dosePeriod,
+      containerQty: containerQty.trim() ? Number(containerQty) : null,
+      unitsRemaining: unitsRemaining.trim() ? Number(unitsRemaining) : null,
+      nonMedicinalIngredients: nonMedicinal.trim() || null,
       ingredients,
       imagePath,
       pillColor: null,
@@ -215,40 +228,91 @@ export function ProductForm({
               <Label htmlFor="p-brand">Brand</Label>
               <Input id="p-brand" value={brand} onChange={(e) => setBrand(e.target.value)} />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="p-serving">Serving size</Label>
-              <Input
-                id="p-serving"
-                placeholder="e.g. 1 capsule"
-                value={servingSize}
-                onChange={(e) => setServingSize(e.target.value)}
-              />
+            {/* Dosage: how much you take at once, how often. */}
+            <div className="col-span-full flex flex-col gap-2">
+              <Label htmlFor="p-dose-amount">Dosage</Label>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Input
+                  id="p-dose-amount"
+                  type="number"
+                  min={0}
+                  step="any"
+                  className="w-20"
+                  placeholder="2"
+                  value={doseAmount}
+                  onChange={(e) => setDoseAmount(e.target.value)}
+                />
+                <Select value={doseForm || undefined} onValueChange={setDoseForm}>
+                  <SelectTrigger className="w-40" aria-label="Dose form">
+                    <SelectValue placeholder="tablet / capsule…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOSE_FORMS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  className="w-20"
+                  placeholder="1"
+                  aria-label="Times per period"
+                  value={doseFrequency}
+                  onChange={(e) => setDoseFrequency(e.target.value)}
+                />
+                <span className="text-muted-foreground">time(s) per</span>
+                <Select value={dosePeriod} onValueChange={setDosePeriod}>
+                  <SelectTrigger className="w-28" aria-label="Dose period">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOSE_PERIODS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="p-per-container">Servings per container</Label>
+              <Label htmlFor="p-container-qty">
+                {doseFormNoun(doseForm || null)} in container
+              </Label>
               <Input
-                id="p-per-container"
+                id="p-container-qty"
                 type="number"
                 min={0}
                 step="any"
                 placeholder="e.g. 90"
-                value={servingsPerContainer}
-                onChange={(e) => setServingsPerContainer(e.target.value)}
+                value={containerQty}
+                onChange={(e) => {
+                  // keep "on hand" tracking the container size until the user
+                  // overrides it, so a fresh bottle is prefilled correctly
+                  if (unitsRemaining === containerQty) setUnitsRemaining(e.target.value);
+                  setContainerQty(e.target.value);
+                }}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="p-stock">Servings on hand</Label>
+              <Label htmlFor="p-units-remaining">
+                {doseFormNoun(doseForm || null)} remaining
+              </Label>
               <Input
-                id="p-stock"
+                id="p-units-remaining"
                 type="number"
                 min={0}
                 step="any"
                 placeholder="how many you have now"
-                value={stockServings}
-                onChange={(e) => setStockServings(e.target.value)}
+                value={unitsRemaining}
+                onChange={(e) => setUnitsRemaining(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Used to estimate days remaining. Update it when you refill.
+                Estimates days remaining. Update it when you refill.
               </p>
             </div>
           </div>
@@ -592,6 +656,22 @@ export function ProductForm({
           ingredients like digestive enzymes.
         </p>
       </fieldset>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="p-nonmed">Non-medicinal ingredients</Label>
+        <textarea
+          id="p-nonmed"
+          rows={2}
+          className="min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          placeholder="Fillers, coatings, colours… (not counted toward nutrients)"
+          value={nonMedicinal}
+          onChange={(e) => setNonMedicinal(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          The &quot;other ingredients&quot; on the label — stored for reference,
+          not tracked.
+        </p>
+      </div>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>

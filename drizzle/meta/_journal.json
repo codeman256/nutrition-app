@@ -64,6 +64,13 @@
       "when": 1784691499597,
       "tag": "0008_product-stock",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784736815515,
+      "tag": "0009_product-dosage",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@
  */
 
 import { guessForm, matchNutrient } from "@/data/nutrients";
+import { normalizeDoseForm, pillStyleForDoseForm } from "@/data/dose-forms";
 import { parseUnit } from "@/lib/planner";
 import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
@@ -70,7 +71,13 @@ export async function searchDsldByUpc(code: string): Promise<SearchHit[]> {
 interface DsldServingSize {
   order?: number;
   minQuantity?: number;
+  minDailyServings?: number;
   unit?: string;
+}
+
+interface DsldOtherIngredient {
+  name?: string;
+  forms?: { name?: string }[];
 }
 
 interface DsldQuantity {
@@ -88,11 +95,25 @@ interface DsldLabel {
   thumbnail?: string;
   servingsPerContainer?: number | string;
   servingSizes?: DsldServingSize[];
+  netContents?: { quantity?: number; unit?: string; order?: number }[];
+  physicalState?: { langualCodeDescription?: string };
+  // note: DSLD spells this key lowercase
+  otheringredients?: { text?: string | null; ingredients?: DsldOtherIngredient[] };
   ingredientRows?: {
     name?: string;
     forms?: { name?: string }[];
     quantity?: DsldQuantity[];
   }[];
+}
+
+/** Flatten DSLD's "other ingredients" (incl. blend sub-lists) into a paragraph. */
+function otherIngredientsText(label: DsldLabel): string | null {
+  const names: string[] = [];
+  for (const ing of label.otheringredients?.ingredients ?? []) {
+    if (ing.name) names.push(ing.name);
+    for (const f of ing.forms ?? []) if (f.name) names.push(f.name);
+  }
+  return names.length > 0 ? names.join(", ") : null;
 }
 
 /**
@@ -163,6 +184,13 @@ export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
   }
 
   const serving = baseServing;
+  // Dose form/amount/frequency and container size from the label.
+  const doseForm =
+    normalizeDoseForm(serving?.unit) ??
+    normalizeDoseForm(label.physicalState?.langualCodeDescription);
+  const container = label.netContents?.[0];
+  const containerQty = container?.quantity || null;
+
   return {
     name: label.fullName ?? "Unknown product",
     brand: label.brandName ?? null,
@@ -171,6 +199,13 @@ export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
       ? `${serving.minQuantity ?? 1} ${serving.unit ?? "serving"}`
       : null,
     servingsPerContainer: Number(label.servingsPerContainer) || null,
+    doseForm,
+    doseAmount: serving?.minQuantity ?? null,
+    doseFrequency: serving?.minDailyServings ?? null,
+    dosePeriod: serving?.minDailyServings ? "day" : null,
+    containerQty,
+    pillStyle: pillStyleForDoseForm(doseForm),
+    nonMedicinalIngredients: otherIngredientsText(label),
     imageUrl: label.thumbnail ?? null,
     source: "dsld",
     ingredients,

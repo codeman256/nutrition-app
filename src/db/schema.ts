@@ -122,10 +122,17 @@ export const products = sqliteTable(
     imagePath: text("image_path"), // user-uploaded photo, relative to uploads dir
     pillColor: text("pill_color"), // legacy single-colour key (kept for fallback)
     pillStyle: text("pill_style"), // JSON: { shape, size, color, color2 } // preset colour key for the placeholder pill
-    // Stock tracking (F2): servings on hand as of stockUpdatedAt; days-remaining
-    // is projected forward from there using the regimen's daily consumption.
+    // Dosage & stock (F2, unit-based). A "unit" is one tablet/capsule/etc.
+    doseForm: text("dose_form"), // tablet | capsule | softgel | …
+    doseAmount: real("dose_amount"), // units per intake (e.g. 2 tablets)
+    doseFrequency: real("dose_frequency"), // intakes per dosePeriod
+    dosePeriod: text("dose_period"), // day | week | month
+    containerQty: real("container_qty"), // total units in a container
+    unitsRemaining: real("units_remaining"), // units on hand as of stockUpdatedAt
+    // legacy F2 fields (servings-based) — superseded by the unit fields above
     stockServings: real("stock_servings"),
     stockUpdatedAt: integer("stock_updated_at", { mode: "timestamp" }),
+    nonMedicinalIngredients: text("non_medicinal_ingredients"), // paragraph
     notes: text("notes"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

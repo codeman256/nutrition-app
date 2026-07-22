@@ -16,6 +16,7 @@ import { and, getTableColumns, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { lnhpdIndex, lnhpdSyncState } from "@/db/schema";
 import { guessForm, matchNutrient } from "@/data/nutrients";
+import { normalizeDoseForm, pillStyleForDoseForm } from "@/data/dose-forms";
 import { parseUnit } from "@/lib/planner";
 import type { IngredientDraft, ProductDraft, SearchHit } from "./types";
 
@@ -433,6 +434,41 @@ interface LnhpdIngredient {
   source_material?: string;
 }
 
+interface LnhpdDose {
+  population_type_desc?: string;
+  quantity_dose?: number;
+  quantity_dose_minimum?: number;
+  quantity_dose_maximum?: number;
+  uom_type_desc_quantity_dose?: string;
+  frequency?: number;
+  frequency_minimum?: number;
+  frequency_maximum?: number;
+  uom_type_desc_frequency?: string;
+}
+
+/** LNHPD endpoints return either a bare array or a `{ data: [...] }` wrapper. */
+function asArray<T>(json: unknown): T[] {
+  if (Array.isArray(json)) return json as T[];
+  const data = (json as { data?: T[] } | null)?.data;
+  return Array.isArray(data) ? data : [];
+}
+
+function lnhpdPeriod(uom: string | undefined): string {
+  const s = (uom ?? "").toLowerCase();
+  if (s.includes("week")) return "week";
+  if (s.includes("month")) return "month";
+  return "day"; // daily / per day / …
+}
+
+async function fetchLnhpd(endpoint: string, lnhpdId: string): Promise<unknown> {
+  const res = await fetch(
+    `${BASE}/${endpoint}/?lang=en&type=json&id=${encodeURIComponent(lnhpdId)}`,
+    { signal: AbortSignal.timeout(30_000) },
+  );
+  if (!res.ok) throw new Error(`LNHPD ${endpoint} fetch failed (${res.status})`);
+  return res.json();
+}
+
 export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   // All name rows for this licence, so the user can pick the one on their bottle.
   const indexRows = await db
@@ -442,12 +478,13 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
   const nameOptions = orderNames(indexRows, []);
   const indexed = indexRows[0];
 
-  const res = await fetch(
-    `${BASE}/medicinalingredient/?lang=en&type=json&id=${encodeURIComponent(lnhpdId)}`,
-    { signal: AbortSignal.timeout(30_000) },
-  );
-  if (!res.ok) throw new Error(`LNHPD ingredient fetch failed (${res.status})`);
-  const body = (await res.json()) as { data?: LnhpdIngredient[] };
+  // Medicinal ingredients, recommended dose, and non-medicinal list in parallel.
+  // Dose/non-medicinal are best-effort — a failure there shouldn't block import.
+  const [body, doseJson, nonMedJson] = await Promise.all([
+    fetchLnhpd("medicinalingredient", lnhpdId) as Promise<{ data?: LnhpdIngredient[] }>,
+    fetchLnhpd("productdose", lnhpdId).catch(() => null),
+    fetchLnhpd("nonmedicinalingredient", lnhpdId).catch(() => null),
+  ]);
 
   const ingredients: IngredientDraft[] = [];
   const seen = new Set<string>();
@@ -488,12 +525,36 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
     });
   }
 
+  // Recommended dose: prefer the Adults row, else the first.
+  const doses = asArray<LnhpdDose>(doseJson);
+  const dose = doses.find((d) => /adult/i.test(d.population_type_desc ?? "")) ?? doses[0];
+  const doseForm =
+    normalizeDoseForm(dose?.uom_type_desc_quantity_dose) ??
+    normalizeDoseForm(indexed?.dosageForm);
+  const doseAmount =
+    dose?.quantity_dose || dose?.quantity_dose_minimum || dose?.quantity_dose_maximum || null;
+  const doseFrequency =
+    dose?.frequency || dose?.frequency_minimum || dose?.frequency_maximum || null;
+
+  // Non-medicinal ("other") ingredients as a plain paragraph.
+  const nonMed = asArray<{ ingredient_name?: string }>(nonMedJson)
+    .map((n) => n.ingredient_name?.trim())
+    .filter(Boolean);
+
   return {
     name: nameOptions[0] ?? indexed?.productName ?? `LNHPD ${lnhpdId}`,
     nameOptions,
     brand: indexed?.companyName ?? null,
     npn: indexed?.licenceNumber ?? null,
     servingSize: indexed?.dosageForm ? `1 ${indexed.dosageForm}` : null,
+    doseForm,
+    doseAmount,
+    doseFrequency,
+    dosePeriod: dose ? lnhpdPeriod(dose.uom_type_desc_frequency) : null,
+    // LNHPD is a licence database, not a SKU — no container size.
+    containerQty: null,
+    pillStyle: pillStyleForDoseForm(doseForm),
+    nonMedicinalIngredients: nonMed.length > 0 ? nonMed.join(", ") : null,
     source: "lnhpd",
     ingredients: collapseUnitTwins(ingredients),
   };
