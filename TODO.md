@@ -118,12 +118,13 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [ ] **F4 — Optional AI label reading** (Claude API, bring-your-own-key).
 - [x] **F2 — Stock tracking (unit-based).** Products carry a **Dosage** (X
   tablets/capsules/etc., Y times per day/week/month), **qty in container**, and
-  **qty remaining** (stamped with an as-of date). The products page projects
-  days of supply from qty remaining ÷ the dose's units-per-day, shown as a badge
-  per card — muted, amber ≤14 days, red when out. Dose form, dose, container
-  size and pill shape prefill from the API (LNHPD `productdose`, DSLD
-  `servingSizes`/`netContents`); qty remaining defaults to a full container.
-  Pure projection in `lib/stock.ts`, unit-tested.
+  **qty remaining** (stamped with an as-of date). Days of supply project from
+  **qty remaining ÷ actual regimen consumption** (servings/day on active
+  weekdays × units per serving), shown as a badge per card — muted, amber ≤14
+  days, red when out; products not in the regimen show no estimate. Dose form,
+  dose, container size and pill shape prefill from the API (LNHPD `productdose`,
+  DSLD `servingSizes`/`netContents`); qty remaining defaults to a full
+  container. Pure projection in `lib/stock.ts`, unit-tested.
 - [ ] **F6 — Adherence check-off.**
 - [x] **F7 — Non-medical ingredients from the API.** Imported from LNHPD
   `nonmedicinalingredient` and DSLD `otheringredients` and shown as a plain

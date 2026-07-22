@@ -35,6 +35,22 @@ export function doseUnitsPerDay(
   return (amount * freq) / periodDays(dosePeriod);
 }
 
+/**
+ * Units consumed per day from the user's *actual* regimen: their servings/day
+ * on active weekdays, times the units in one serving (doseAmount). This drives
+ * stock days-remaining, so it reflects what they really take rather than the
+ * label's recommended dose. A serving with no known unit count is treated as
+ * one unit.
+ */
+export function regimenUnitsPerDay(
+  servingsPerDay: number,
+  activeDaysPerWeek: number,
+  unitsPerServing: number | null | undefined,
+): number {
+  const perServing = unitsPerServing && unitsPerServing > 0 ? unitsPerServing : 1;
+  return dailyServings(servingsPerDay, activeDaysPerWeek) * perServing;
+}
+
 export interface StockProjection {
   /** amount left now (units), never below 0 */
   amountRemaining: number;

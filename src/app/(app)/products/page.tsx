@@ -3,9 +3,10 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import { db } from "@/db";
-import { productIngredients, products } from "@/db/schema";
+import { productIngredients, products, regimenItems } from "@/db/schema";
 import { requireConsentedUser } from "@/lib/session";
-import { doseUnitsPerDay, projectStock } from "@/lib/stock";
+import { activeDayCount } from "@/lib/planner";
+import { projectStock, regimenUnitsPerDay } from "@/lib/stock";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/product-card";
 
@@ -14,14 +15,20 @@ export const metadata: Metadata = { title: "Products" };
 export default async function ProductsPage() {
   const { user } = await requireConsentedUser();
 
-  const rows = await db
-    .select({
-      product: products,
-      ingredient: productIngredients,
-    })
-    .from(products)
-    .leftJoin(productIngredients, eq(productIngredients.productId, products.id))
-    .where(eq(products.userId, user.id));
+  const [rows, regimen] = await Promise.all([
+    db
+      .select({
+        product: products,
+        ingredient: productIngredients,
+      })
+      .from(products)
+      .leftJoin(productIngredients, eq(productIngredients.productId, products.id))
+      .where(eq(products.userId, user.id)),
+    db.select().from(regimenItems).where(eq(regimenItems.userId, user.id)),
+  ]);
+
+  // How many servings/day the regimen actually schedules for each product.
+  const regimenByProduct = new Map(regimen.map((r) => [r.productId, r]));
 
   const byId = new Map<
     number,
@@ -63,10 +70,21 @@ export default async function ProductsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((p) => {
+            // Days remaining reflects the actual regimen: servings/day on active
+            // weekdays × units per serving. Products not in the regimen aren't
+            // being consumed, so no estimate is shown.
+            const item = regimenByProduct.get(p.id);
+            const unitsPerDay = item
+              ? regimenUnitsPerDay(
+                  item.servingsPerDay,
+                  activeDayCount(item.daysOfWeek),
+                  p.doseAmount,
+                )
+              : 0;
             const projection = projectStock(
               p.unitsRemaining,
               p.stockUpdatedAt,
-              doseUnitsPerDay(p.doseAmount, p.doseFrequency, p.dosePeriod),
+              unitsPerDay,
             );
             return (
               <ProductCard

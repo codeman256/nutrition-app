@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { dailyServings, doseUnitsPerDay, projectStock } from "./stock";
+import {
+  dailyServings,
+  doseUnitsPerDay,
+  projectStock,
+  regimenUnitsPerDay,
+} from "./stock";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 const NOW = new Date("2026-07-22T00:00:00Z");
@@ -30,6 +35,27 @@ describe("doseUnitsPerDay", () => {
   it("is zero when the dose is incomplete", () => {
     expect(doseUnitsPerDay(null, 1, "day")).toBe(0);
     expect(doseUnitsPerDay(2, 0, "day")).toBe(0);
+  });
+});
+
+describe("regimenUnitsPerDay", () => {
+  it("multiplies daily servings by units per serving", () => {
+    // 1 serving/day every day, 2 tablets per serving -> 2 units/day
+    expect(regimenUnitsPerDay(1, 7, 2)).toBe(2);
+    // 2 servings/day, 1 unit each -> 2 units/day
+    expect(regimenUnitsPerDay(2, 7, 1)).toBe(2);
+  });
+  it("prorates by active weekdays", () => {
+    // 1 serving on 3 days/week, 2 units each -> 6/7 units/day
+    expect(regimenUnitsPerDay(1, 3, 2)).toBeCloseTo(6 / 7);
+  });
+  it("treats an unknown serving size as one unit", () => {
+    expect(regimenUnitsPerDay(1, 7, null)).toBe(1);
+    expect(regimenUnitsPerDay(1, 7, 0)).toBe(1);
+  });
+  it("is zero when not taken", () => {
+    expect(regimenUnitsPerDay(0, 7, 2)).toBe(0);
+    expect(regimenUnitsPerDay(1, 0, 2)).toBe(0);
   });
 });
 

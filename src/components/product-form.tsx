@@ -312,7 +312,8 @@ export function ProductForm({
                 onChange={(e) => setUnitsRemaining(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Estimates days remaining. Update it when you refill.
+                Days remaining is estimated from your regimen (Regimen page).
+                Update this when you refill.
               </p>
             </div>
           </div>
