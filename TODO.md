@@ -125,6 +125,11 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   is F6).
 - [ ] **F6 — Adherence check-off.**
 - [ ] **F7 - bring in non medical ingredients** from api too.
+- [ ] **F8 — Email setup (SMTP).** Optional outbound email so the app can send:
+  email-verification / change-email confirmation (currently email changes apply
+  directly with no sender), low-stock reminders (from F2), and other
+  notifications. Admin-configurable SMTP host/credentials; feature-flag off when
+  unset. Until then, account email changes are applied directly server-side.
 
 ## Admin & data
 

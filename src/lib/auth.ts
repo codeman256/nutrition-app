@@ -64,12 +64,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  user: {
-    // Let a signed-in user change their own email from the profile page. With
-    // no email sender configured, better-auth applies the change directly
-    // (there's no verification step to gate it on a self-hosted instance).
-    changeEmail: { enabled: true },
-  },
   databaseHooks: {
     user: {
       create: {
