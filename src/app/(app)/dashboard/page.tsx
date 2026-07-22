@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { productIngredients, products, regimenItems } from "@/db/schema";
 import { requireConsentedUser } from "@/lib/session";
@@ -50,7 +50,13 @@ export default async function DashboardPage() {
       .select({ ing: productIngredients })
       .from(productIngredients)
       .innerJoin(products, eq(productIngredients.productId, products.id))
-      .where(eq(products.userId, user.id)),
+      .where(
+        and(
+          eq(products.userId, user.id),
+          // non-medicinal fillers never contribute to nutrient totals
+          eq(productIngredients.nonMedicinal, false),
+        ),
+      ),
     db.select().from(regimenItems).where(eq(regimenItems.userId, user.id)),
   ]);
 

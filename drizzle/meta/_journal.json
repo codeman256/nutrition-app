@@ -71,6 +71,13 @@
       "when": 1784736815515,
       "tag": "0009_product-dosage",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784764426121,
+      "tag": "0010_ingredient-nonmedicinal",
+      "breakpoints": true
     }
   ]
 }

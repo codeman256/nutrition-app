@@ -127,8 +127,10 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   container. Pure projection in `lib/stock.ts`, unit-tested.
 - [ ] **F6 — Adherence check-off.**
 - [x] **F7 — Non-medical ingredients from the API.** Imported from LNHPD
-  `nonmedicinalingredient` and DSLD `otheringredients` and shown as a plain
-  paragraph on the product form (stored, not tracked toward nutrients).
+  `nonmedicinalingredient` and DSLD `otheringredients`. Edited as a plain
+  paragraph on the product form but **stored as individual `product_ingredients`
+  rows** (`non_medicinal = true`) for later use; excluded from nutrient totals
+  and the tracked-count badge.
 - [ ] **F8 — Email setup (SMTP).** Optional outbound email so the app can send:
   email-verification / change-email confirmation (currently email changes apply
   directly with no sender), low-stock reminders (from F2), and other

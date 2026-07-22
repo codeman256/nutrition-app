@@ -132,7 +132,6 @@ export const products = sqliteTable(
     // legacy F2 fields (servings-based) — superseded by the unit fields above
     stockServings: real("stock_servings"),
     stockUpdatedAt: integer("stock_updated_at", { mode: "timestamp" }),
-    nonMedicinalIngredients: text("non_medicinal_ingredients"), // paragraph
     notes: text("notes"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
@@ -158,6 +157,11 @@ export const productIngredients = sqliteTable(
     // page can read like the bottle in hand. Canada mandates no ingredient
     // order, so the source's own order is the best signal we have.
     position: integer("position").notNull().default(0),
+    // Non-medicinal / "other" ingredients (fillers, coatings, colours) kept as
+    // their own rows for later use; they never count toward nutrient totals.
+    nonMedicinal: integer("non_medicinal", { mode: "boolean" })
+      .notNull()
+      .default(false),
   },
   (t) => [index("product_ingredients_product_id_idx").on(t.productId)],
 );

@@ -63,7 +63,6 @@ export async function saveProduct(input: SaveProductInput) {
     dosePeriod: input.dosePeriod || null,
     containerQty: nonNeg(input.containerQty),
     unitsRemaining,
-    nonMedicinalIngredients: input.nonMedicinalIngredients?.trim() || null,
     notes: input.notes?.trim() || null,
     updatedAt: new Date(),
   };
@@ -109,8 +108,15 @@ export async function saveProduct(input: SaveProductInput) {
     productId = inserted[0].id;
   }
 
-  await db.insert(productIngredients).values(
-    ingredients.map((ing, index) => ({
+  // Non-medicinal ("other") ingredients are entered as a paragraph but stored
+  // as their own rows (one per name) for later use — never tracked.
+  const nonMedNames = (input.nonMedicinalIngredients ?? "")
+    .split(/[,\n;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const rows = [
+    ...ingredients.map((ing, index) => ({
       productId,
       nutrientId: ing.nutrientId,
       label: ing.label.trim(),
@@ -119,8 +125,20 @@ export async function saveProduct(input: SaveProductInput) {
       form: ing.form ?? null,
       // Keep the order the label (or the user) put them in.
       position: index,
+      nonMedicinal: false,
     })),
-  );
+    ...nonMedNames.map((name, i) => ({
+      productId,
+      nutrientId: null,
+      label: name,
+      amountPerServing: 0,
+      unit: "",
+      form: null,
+      position: ingredients.length + i,
+      nonMedicinal: true,
+    })),
+  ];
+  if (rows.length > 0) await db.insert(productIngredients).values(rows);
 
   revalidatePath("/products");
   revalidatePath("/regimen");

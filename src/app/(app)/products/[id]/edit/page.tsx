@@ -35,6 +35,14 @@ export default async function EditProductPage({
     .where(eq(productIngredients.productId, productId))
     .orderBy(asc(productIngredients.position), asc(productIngredients.id));
 
+  // Medical rows go to the ingredient editor; non-medical rows collapse back
+  // into the paragraph field they were entered from.
+  const medical = ingredients.filter((ing) => !ing.nonMedicinal);
+  const nonMedicinal = ingredients
+    .filter((ing) => ing.nonMedicinal)
+    .map((ing) => ing.label)
+    .join(", ");
+
   const draft: ProductDraft = {
     name: product.name,
     brand: product.brand,
@@ -48,12 +56,12 @@ export default async function EditProductPage({
     dosePeriod: product.dosePeriod,
     containerQty: product.containerQty,
     unitsRemaining: product.unitsRemaining,
-    nonMedicinalIngredients: product.nonMedicinalIngredients,
+    nonMedicinalIngredients: nonMedicinal || null,
     imageUrl: product.imageUrl,
     pillColor: product.pillColor,
     pillStyle: product.pillStyle,
     source: product.source,
-    ingredients: ingredients.map((ing) => ({
+    ingredients: medical.map((ing) => ({
       label: ing.label,
       nutrientId: ing.nutrientId,
       amountPerServing: ing.amountPerServing,

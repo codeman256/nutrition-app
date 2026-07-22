@@ -38,7 +38,8 @@ export default async function ProductsPage() {
     const entry =
       byId.get(row.product.id) ??
       Object.assign(row.product, { trackedCount: 0, totalCount: 0 });
-    if (row.ingredient) {
+    // Non-medicinal rows (fillers, coatings) aren't counted as ingredients.
+    if (row.ingredient && !row.ingredient.nonMedicinal) {
       entry.totalCount++;
       if (row.ingredient.nutrientId) entry.trackedCount++;
     }
