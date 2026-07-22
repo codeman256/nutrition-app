@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   Check,
   CircleAlert,
@@ -59,6 +59,13 @@ function formatAmount(n: number): string {
   if (n >= 100) return Math.round(n).toLocaleString();
   if (n >= 10) return n.toFixed(1).replace(/\.0$/, "");
   return n.toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** Compact label for a form sub-row: the form's name without its parenthetical. */
+function formLabel(nutrient: NutrientRow["nutrient"], form: string | null): string {
+  if (form === null) return "Unspecified form";
+  const def = nutrient.forms?.find((f) => f.value === form);
+  return (def?.label ?? form).split("(")[0].trim();
 }
 
 
@@ -333,8 +340,13 @@ export function DashboardView({
                 const dv = row.nutrient.dailyValue;
                 const { unit, factor } = displayUnit(row.nutrient, unitMode);
                 const scaled = (n: number) => formatAmount(n * factor);
+                // Break vitamins A/E into a sub-line per form, but only when two
+                // or more forms actually contribute (e.g. retinyl + β-carotene).
+                const showForms =
+                  !!row.formBreakdown && row.formBreakdown.length >= 2;
                 return (
-                  <TableRow key={row.nutrient.id}>
+                  <Fragment key={row.nutrient.id}>
+                  <TableRow>
                     <TableCell className="font-medium">
                       {row.nutrient.factSheet ? (
                         <a
@@ -421,6 +433,40 @@ export function DashboardView({
                       </span>
                     </TableCell>
                   </TableRow>
+                  {showForms &&
+                    row.formBreakdown!.map((fc) => (
+                      <TableRow
+                        key={`${row.nutrient.id}-${fc.form ?? "none"}`}
+                        className="border-0 text-muted-foreground"
+                      >
+                        <TableCell className="py-1 pl-6 text-sm font-normal">
+                          <span
+                            aria-hidden="true"
+                            className="mr-1 select-none text-muted-foreground/60"
+                          >
+                            └─
+                          </span>
+                          {formLabel(row.nutrient, fc.form)}
+                        </TableCell>
+                        {plan.products.map((p) => (
+                          <TableCell key={p.id} className="py-1 text-sm tabular-nums">
+                            {fc.contributions[p.id] ? scaled(fc.contributions[p.id]) : "—"}
+                          </TableCell>
+                        ))}
+                        <TableCell className="py-1 text-sm tabular-nums">
+                          {scaled(fc.total)}
+                        </TableCell>
+                        {/* Target and Limit are per-nutrient, not per-form */}
+                        <TableCell className="py-1" />
+                        <TableCell className="py-1" />
+                        <TableCell className="border-r py-1 text-sm">{unit}</TableCell>
+                        <TableCell className="py-1" />
+                        <TableCell className="py-1" />
+                        <TableCell className="py-1" />
+                        <TableCell className="py-1" />
+                      </TableRow>
+                    ))}
+                  </Fragment>
                 );
               })}
             </TableBody>

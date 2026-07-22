@@ -187,6 +187,15 @@ export type NutrientStatus =
   | "near-ul"
   | "over-ul";
 
+/** One form's share of a nutrient's total, for the dashboard's sub-rows. */
+export interface NutrientFormContribution {
+  /** the ingredient form (a `nutrient.forms` value), or null when unspecified */
+  form: string | null;
+  /** productId → amount from this form per day (canonical unit) */
+  contributions: Record<number, number>;
+  total: number;
+}
+
 export interface NutrientRow {
   nutrient: NutrientDef;
   /** productId → amount contributed per day (canonical unit) */
@@ -198,6 +207,13 @@ export interface NutrientRow {
   pctRecommended: number | null;
   pctUl: number | null;
   status: NutrientStatus;
+  /**
+   * Split of the total by ingredient form, for nutrients that define forms
+   * (vitamins A and E). Present whenever any form contributes; the dashboard
+   * only draws sub-rows when two or more forms are involved (e.g. retinyl +
+   * beta-carotene). Ordered by the nutrient's declared form order, unknown last.
+   */
+  formBreakdown?: NutrientFormContribution[];
 }
 
 export interface DayPlan {
@@ -217,6 +233,30 @@ function statusFor(
   if (ul !== null && total >= 0.8 * ul) return "near-ul";
   if (recommended !== null && total >= recommended) return "meets-rda";
   return "below-rda";
+}
+
+/**
+ * Turn a nutrient's per-form, per-product amounts into ordered breakdown rows.
+ * Drops forms that net to nothing; orders by the nutrient's declared form order
+ * (unknown/unspecified last). Returns undefined when nothing contributes.
+ */
+function buildFormBreakdown(
+  nutrient: NutrientDef,
+  byForm: Map<string, Record<number, number>>,
+): NutrientFormContribution[] | undefined {
+  const entries: NutrientFormContribution[] = [];
+  for (const [formKey, contributions] of byForm) {
+    const total = Object.values(contributions).reduce((a, b) => a + b, 0);
+    if (total <= 0) continue;
+    entries.push({ form: formKey || null, contributions, total });
+  }
+  if (entries.length === 0) return undefined;
+
+  const order = new Map((nutrient.forms ?? []).map((f, i) => [f.value, i]));
+  const rank = (form: string | null) =>
+    form === null ? 999 : order.get(form) ?? 998;
+  entries.sort((a, b) => rank(a.form) - rank(b.form));
+  return entries;
 }
 
 /**
@@ -241,6 +281,9 @@ export function computeDay(
   }
 
   const contributions = new Map<string, Record<number, number>>();
+  // Parallel split by ingredient form, only kept for nutrients that define
+  // forms (A/E) — feeds the dashboard's per-form sub-rows.
+  const formContributions = new Map<string, Map<string, Record<number, number>>>();
   for (const { product, servings } of active) {
     for (const ing of product.ingredients) {
       if (!ing.nutrientId) continue;
@@ -253,9 +296,19 @@ export function computeDay(
         ing.form,
       );
       if (canonical === null) continue;
+      const amount = canonical * servings;
       const byProduct = contributions.get(nutrient.id) ?? {};
-      byProduct[product.id] = (byProduct[product.id] ?? 0) + canonical * servings;
+      byProduct[product.id] = (byProduct[product.id] ?? 0) + amount;
       contributions.set(nutrient.id, byProduct);
+
+      if (nutrient.forms) {
+        const formKey = ing.form ?? "";
+        const byForm = formContributions.get(nutrient.id) ?? new Map();
+        const byProductForm = byForm.get(formKey) ?? {};
+        byProductForm[product.id] = (byProductForm[product.id] ?? 0) + amount;
+        byForm.set(formKey, byProductForm);
+        formContributions.set(nutrient.id, byForm);
+      }
     }
   }
 
@@ -267,6 +320,7 @@ export function computeDay(
     if (total <= 0) continue;
 
     const dri = getDri(nutrient.id, profile);
+    const byForm = formContributions.get(nutrient.id);
     rows.push({
       nutrient,
       contributions: byProduct,
@@ -278,6 +332,7 @@ export function computeDay(
         dri.recommended !== null ? (total / dri.recommended) * 100 : null,
       pctUl: dri.ul !== null ? (total / dri.ul) * 100 : null,
       status: statusFor(total, dri.recommended, dri.ul),
+      formBreakdown: byForm ? buildFormBreakdown(nutrient, byForm) : undefined,
     });
   }
 
@@ -329,6 +384,9 @@ function averagePlans(days: DayPlan[], profile: DriQuery): DayPlan {
     string,
     { total: number; contributions: Record<number, number> }
   >();
+  // Sum each nutrient's form split across days too, so the averaged view keeps
+  // its per-form sub-rows even when a form only appears on some days.
+  const summedForms = new Map<string, Map<string, Record<number, number>>>();
   for (const d of days) {
     for (const row of d.rows) {
       const acc = summed.get(row.nutrient.id) ?? { total: 0, contributions: {} };
@@ -337,6 +395,19 @@ function averagePlans(days: DayPlan[], profile: DriQuery): DayPlan {
         acc.contributions[Number(pid)] = (acc.contributions[Number(pid)] ?? 0) + amt;
       }
       summed.set(row.nutrient.id, acc);
+
+      if (row.formBreakdown) {
+        const byForm = summedForms.get(row.nutrient.id) ?? new Map();
+        for (const fc of row.formBreakdown) {
+          const formKey = fc.form ?? "";
+          const byProductForm = byForm.get(formKey) ?? {};
+          for (const [pid, amt] of Object.entries(fc.contributions)) {
+            byProductForm[Number(pid)] = (byProductForm[Number(pid)] ?? 0) + amt;
+          }
+          byForm.set(formKey, byProductForm);
+        }
+        summedForms.set(row.nutrient.id, byForm);
+      }
     }
   }
 
@@ -352,6 +423,19 @@ function averagePlans(days: DayPlan[], profile: DriQuery): DayPlan {
       contributions[Number(pid)] = amt / divisor;
     }
 
+    const byForm = summedForms.get(nutrient.id);
+    let averagedForms: Map<string, Record<number, number>> | undefined;
+    if (byForm) {
+      averagedForms = new Map();
+      for (const [formKey, byProductForm] of byForm) {
+        const divided: Record<number, number> = {};
+        for (const [pid, amt] of Object.entries(byProductForm)) {
+          divided[Number(pid)] = amt / divisor;
+        }
+        averagedForms.set(formKey, divided);
+      }
+    }
+
     const dri = getDri(nutrient.id, profile);
     rows.push({
       nutrient,
@@ -364,6 +448,9 @@ function averagePlans(days: DayPlan[], profile: DriQuery): DayPlan {
         dri.recommended !== null ? (total / dri.recommended) * 100 : null,
       pctUl: dri.ul !== null ? (total / dri.ul) * 100 : null,
       status: statusFor(total, dri.recommended, dri.ul),
+      formBreakdown: averagedForms
+        ? buildFormBreakdown(nutrient, averagedForms)
+        : undefined,
     });
   }
 

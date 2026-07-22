@@ -66,6 +66,13 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [x] **D5 — Show % Daily Value** column alongside % target (was F1).
 - [y] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
   as the grid grows.
+- [x] **D8 — Per-form sub-rows for vitamins A/E.** When two or more forms
+  contribute (e.g. Centrum's retinyl + β-carotene), the nutrient row now shows
+  an indented "└─ Beta-carotene / └─ Retinol" sub-line per form with its own
+  per-product amounts and subtotal (in canonical units, summing to the parent
+  total). Target/limit/%/status stay on the parent (they're per-nutrient). The
+  split is preserved through the weekly-average view. Unit-tested
+  (`formBreakdown`).
 - [x] **D7 — Weekly-average-per-day view.** An "Avg" tab beside the weekdays
   shows average daily intake — each nutrient's 7-day total ÷ 7, counting
   non-dose days as zero. So a supplement taken 3×/week averages to 3/7 of its

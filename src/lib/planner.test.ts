@@ -397,3 +397,63 @@ describe("averageWeek", () => {
     expect(d.status).not.toBe("over-ul");
   });
 });
+
+const vitAMulti: ProductInput = {
+  id: 20,
+  name: "A Multi",
+  ingredients: [
+    // Centrum-style: a retinyl line already in RAE + a beta-carotene line
+    { nutrientId: "vitamin_a", amountPerServing: 300, unit: "mcg", form: "retinol" },
+    { nutrientId: "vitamin_a", amountPerServing: 900, unit: "mcg", form: "beta_carotene" },
+  ],
+};
+
+describe("form breakdown", () => {
+  it("splits vitamin A into its forms, summing to the total", () => {
+    const plan = computeDay(
+      [vitAMulti],
+      [{ productId: 20, servingsPerDay: 1, daysOfWeek: EVERY_DAY }],
+      0,
+      adultMale,
+    );
+    const a = plan.rows.find((r) => r.nutrient.id === "vitamin_a")!;
+    // 300 mcg RAE + (900 mcg β-carotene × 0.5) 450 mcg RAE = 750
+    expect(a.total).toBeCloseTo(750);
+    expect(a.formBreakdown).toBeDefined();
+    // ordered by the nutrient's declared form order (retinol, then β-carotene)
+    expect(a.formBreakdown!.map((f) => f.form)).toEqual(["retinol", "beta_carotene"]);
+    expect(a.formBreakdown!.find((f) => f.form === "retinol")!.total).toBeCloseTo(300);
+    expect(a.formBreakdown!.find((f) => f.form === "beta_carotene")!.total).toBeCloseTo(450);
+    // the split sums back to the row total
+    const sum = a.formBreakdown!.reduce((n, f) => n + f.total, 0);
+    expect(sum).toBeCloseTo(a.total);
+  });
+
+  it("carries the split through the weekly average", () => {
+    const avg = averageWeek(
+      [vitAMulti],
+      [{ productId: 20, servingsPerDay: 1, daysOfWeek: 0b0010101 }], // 3 of 7 days
+      adultMale,
+    );
+    const a = avg.rows.find((r) => r.nutrient.id === "vitamin_a")!;
+    expect(a.formBreakdown!.find((f) => f.form === "retinol")!.total).toBeCloseTo(
+      (300 * 3) / 7,
+    );
+    expect(a.formBreakdown!.find((f) => f.form === "beta_carotene")!.total).toBeCloseTo(
+      (450 * 3) / 7,
+    );
+  });
+
+  it("leaves a single-form row with a one-entry split, and non-form nutrients with none", () => {
+    const plan = computeDay(
+      [multiProduct], // vitamin D (no form), magnesium (no forms defined)
+      [{ productId: 2, servingsPerDay: 1, daysOfWeek: EVERY_DAY }],
+      0,
+      adultMale,
+    );
+    // vitamin D defines no forms → no breakdown at all
+    expect(plan.rows.find((r) => r.nutrient.id === "vitamin_d")!.formBreakdown).toBeUndefined();
+    // magnesium has no forms → none
+    expect(plan.rows.find((r) => r.nutrient.id === "magnesium")!.formBreakdown).toBeUndefined();
+  });
+});
