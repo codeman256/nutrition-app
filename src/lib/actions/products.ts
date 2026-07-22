@@ -42,6 +42,11 @@ export async function saveProduct(input: SaveProductInput) {
     return { error: "Add at least one ingredient with an amount and unit." };
   }
 
+  const stockServings =
+    typeof input.stockServings === "number" && input.stockServings >= 0
+      ? input.stockServings
+      : null;
+
   const base = {
     name: input.name.trim(),
     brand: input.brand?.trim() || null,
@@ -54,6 +59,7 @@ export async function saveProduct(input: SaveProductInput) {
     imagePath: input.imagePath || null,
     pillColor: input.pillColor || null,
     pillStyle: input.pillStyle || null,
+    stockServings,
     notes: input.notes?.trim() || null,
     updatedAt: new Date(),
   };
@@ -61,12 +67,27 @@ export async function saveProduct(input: SaveProductInput) {
   let productId: number;
   if (input.id) {
     const owned = await db
-      .select({ id: products.id })
+      .select({
+        id: products.id,
+        stockServings: products.stockServings,
+        stockUpdatedAt: products.stockUpdatedAt,
+      })
       .from(products)
       .where(and(eq(products.id, input.id), eq(products.userId, user.id)))
       .limit(1);
     if (owned.length === 0) return { error: "Product not found." };
-    await db.update(products).set(base).where(eq(products.id, input.id));
+    // Only restamp the "as of" date when the count actually changed, so an
+    // unrelated edit doesn't reset the days-remaining projection.
+    const stockUpdatedAt =
+      stockServings === null
+        ? null
+        : stockServings !== owned[0].stockServings
+          ? new Date()
+          : (owned[0].stockUpdatedAt ?? new Date());
+    await db
+      .update(products)
+      .set({ ...base, stockUpdatedAt })
+      .where(eq(products.id, input.id));
     await db
       .delete(productIngredients)
       .where(eq(productIngredients.productId, input.id));
@@ -74,7 +95,12 @@ export async function saveProduct(input: SaveProductInput) {
   } else {
     const inserted = await db
       .insert(products)
-      .values({ ...base, userId: user.id, createdAt: new Date() })
+      .values({
+        ...base,
+        stockUpdatedAt: stockServings === null ? null : new Date(),
+        userId: user.id,
+        createdAt: new Date(),
+      })
       .returning({ id: products.id });
     productId = inserted[0].id;
   }

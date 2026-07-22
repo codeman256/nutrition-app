@@ -57,6 +57,13 @@
       "when": 1784690957731,
       "tag": "0007_user-role",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784691499597,
+      "tag": "0008_product-stock",
+      "breakpoints": true
     }
   ]
 }

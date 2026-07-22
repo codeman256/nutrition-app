@@ -61,6 +61,12 @@ export function ProductForm({
   const nameOptions = draft.nameOptions ?? [];
   const [brand, setBrand] = useState(draft.brand ?? "");
   const [servingSize, setServingSize] = useState(draft.servingSize ?? "");
+  const [servingsPerContainer, setServingsPerContainer] = useState(
+    draft.servingsPerContainer != null ? String(draft.servingsPerContainer) : "",
+  );
+  const [stockServings, setStockServings] = useState(
+    draft.stockServings != null ? String(draft.stockServings) : "",
+  );
   const [ingredients, setIngredients] = useState<IngredientDraft[]>(
     draft.ingredients.length > 0
       ? draft.ingredients
@@ -142,6 +148,10 @@ export function ProductForm({
       name,
       brand: brand || null,
       servingSize: servingSize || null,
+      servingsPerContainer: servingsPerContainer.trim()
+        ? Number(servingsPerContainer)
+        : null,
+      stockServings: stockServings.trim() ? Number(stockServings) : null,
       ingredients,
       imagePath,
       pillColor: null,
@@ -213,6 +223,33 @@ export function ProductForm({
                 value={servingSize}
                 onChange={(e) => setServingSize(e.target.value)}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="p-per-container">Servings per container</Label>
+              <Input
+                id="p-per-container"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="e.g. 90"
+                value={servingsPerContainer}
+                onChange={(e) => setServingsPerContainer(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="p-stock">Servings on hand</Label>
+              <Input
+                id="p-stock"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="how many you have now"
+                value={stockServings}
+                onChange={(e) => setStockServings(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to estimate days remaining. Update it when you refill.
+              </p>
             </div>
           </div>
       </div>

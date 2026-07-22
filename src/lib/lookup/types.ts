@@ -21,6 +21,8 @@ export interface ProductDraft {
   npn?: string | null;
   servingSize?: string | null;
   servingsPerContainer?: number | null;
+  /** servings currently on hand — user-entered, for stock tracking (F2) */
+  stockServings?: number | null;
   imageUrl?: string | null;
   pillColor?: string | null;
   /** JSON-encoded PillAppearance for the placeholder pill */

@@ -42,6 +42,7 @@ export default async function EditProductPage({
     npn: product.npn,
     servingSize: product.servingSize,
     servingsPerContainer: product.servingsPerContainer,
+    stockServings: product.stockServings,
     imageUrl: product.imageUrl,
     pillColor: product.pillColor,
     pillStyle: product.pillStyle,

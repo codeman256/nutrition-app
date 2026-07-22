@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, PackageOpen } from "lucide-react";
 import { deleteProduct } from "@/lib/actions/products";
+import { LOW_STOCK_DAYS } from "@/lib/stock";
 import { StoredPill } from "@/components/pill";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +23,27 @@ export interface ProductCardData {
   pillStyle: string | null;
   trackedCount: number;
   totalCount: number;
+  /** projected days of supply left, or null when not tracked */
+  daysRemaining: number | null;
+}
+
+/** Days-of-supply pill: red when out, amber when low (≤14d), muted otherwise. */
+function StockBadge({ days }: { days: number }) {
+  const label = days <= 0 ? "Out of stock" : `~${days}d left`;
+  const variant =
+    days <= 0 ? "destructive" : days <= LOW_STOCK_DAYS ? "default" : "outline";
+  return (
+    <Badge
+      variant={variant}
+      className={cn(
+        "w-fit gap-1",
+        days > 0 && days <= LOW_STOCK_DAYS && "bg-amber-500 text-white hover:bg-amber-500",
+      )}
+    >
+      <PackageOpen className="size-3" aria-hidden="true" />
+      {label}
+    </Badge>
+  );
 }
 
 export function ProductCard({ product }: { product: ProductCardData }) {
@@ -63,9 +86,12 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           <p className="truncate text-xs text-muted-foreground">
             {[product.brand, product.servingSize].filter(Boolean).join(" · ") || "—"}
           </p>
-          <Badge variant="secondary" className="w-fit">
-            {product.trackedCount}/{product.totalCount} tracked
-          </Badge>
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="secondary" className="w-fit">
+              {product.trackedCount}/{product.totalCount} tracked
+            </Badge>
+            {product.daysRemaining !== null && <StockBadge days={product.daysRemaining} />}
+          </div>
         </div>
         <div className="flex flex-col gap-1">
           <Button asChild variant="ghost" size="icon" aria-label={`Edit ${product.name}`}>
