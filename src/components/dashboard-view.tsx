@@ -397,7 +397,10 @@ export function DashboardView({
                   !!row.formBreakdown && row.formBreakdown.length >= 2;
                 return (
                   <Fragment key={row.nutrient.id}>
-                  <TableRow>
+                  {/* With form sub-rows, drop the parent's bottom border so the
+                      whole group reads as one block; the last sub-row carries
+                      the separator instead. */}
+                  <TableRow className={cn(showForms && "border-0")}>
                     <TableCell className="font-medium">
                       {row.nutrient.factSheet ? (
                         <a
@@ -485,10 +488,14 @@ export function DashboardView({
                     </TableCell>
                   </TableRow>
                   {showForms &&
-                    row.formBreakdown!.map((fc) => (
+                    row.formBreakdown!.map((fc, fi) => (
                       <TableRow
                         key={`${row.nutrient.id}-${fc.form ?? "none"}`}
-                        className="border-0 text-muted-foreground"
+                        className={cn(
+                          "text-muted-foreground",
+                          // only the last sub-row keeps the group's bottom border
+                          fi < row.formBreakdown!.length - 1 && "border-0",
+                        )}
                       >
                         <TableCell className="py-1 pl-6 text-sm font-normal">
                           <span
