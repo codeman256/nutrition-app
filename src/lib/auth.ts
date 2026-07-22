@@ -63,6 +63,12 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  user: {
+    // Let a signed-in user change their own email from the profile page. With
+    // no email sender configured, better-auth applies the change directly
+    // (there's no verification step to gate it on a self-hosted instance).
+    changeEmail: { enabled: true },
+  },
   // Self-hosted: the app is reached via LAN IP, hostname, or a reverse-proxy
   // domain that the operator can't know at build time. Auto-trust the
   // origin the request was actually served on (derived from the Host /

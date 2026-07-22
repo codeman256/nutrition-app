@@ -146,7 +146,10 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   `test.env`, deleted by a globalSetup) so `npm test` no longer clears the
   developer's downloaded ~300k-row index.
 - [ ] **Q2 — Automated axe/Lighthouse a11y pass** in CI.
-- [y] add user details to the profile page so user can change their name, email, etc.
+- [x] **Account settings on the profile page** — an "Account" section lets the
+  signed-in user change their name, sign-in email, and password (via
+  better-auth updateUser / changeEmail / changePassword; email change is enabled
+  server-side and applies immediately on this self-hosted, no-email setup).
 
 ## Done
 
