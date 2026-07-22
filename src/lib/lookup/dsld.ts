@@ -67,25 +67,66 @@ export async function searchDsldByUpc(code: string): Promise<SearchHit[]> {
   return searchDsld(`"${formatted}"`, 3);
 }
 
+interface DsldServingSize {
+  order?: number;
+  minQuantity?: number;
+  unit?: string;
+}
+
+interface DsldQuantity {
+  quantity?: number;
+  unit?: string;
+  servingSizeOrder?: number;
+  /** the serving amount this figure is stated for (e.g. 22.5 g vs 45 g) */
+  servingSizeQuantity?: number;
+}
+
 interface DsldLabel {
   fullName?: string;
   brandName?: string;
   upcSku?: string;
   thumbnail?: string;
   servingsPerContainer?: number | string;
-  servingSizes?: {
-    minQuantity?: number;
-    unit?: string;
-  }[];
+  servingSizes?: DsldServingSize[];
   ingredientRows?: {
     name?: string;
     forms?: { name?: string }[];
-    quantity?: {
-      quantity?: number;
-      unit?: string;
-      servingSizeOrder?: number;
-    }[];
+    quantity?: DsldQuantity[];
   }[];
+}
+
+/**
+ * A DSLD ingredient can list one amount per serving-size column (e.g. a
+ * "1-2 scoops" panel gives the figure for 22.5 g and again for 45 g). Import a
+ * single consistent serving — the base one — instead of blindly taking the
+ * first entry, which isn't guaranteed to be that column.
+ */
+export function pickServingQuantity(
+  quantities: DsldQuantity[] | undefined,
+  base: DsldServingSize | undefined,
+): DsldQuantity | undefined {
+  if (!quantities || quantities.length === 0) return undefined;
+  if (quantities.length === 1) return quantities[0];
+
+  // Prefer entries for the base serving's column…
+  const sameOrder =
+    base?.order !== undefined
+      ? quantities.filter((q) => q.servingSizeOrder === base.order)
+      : [];
+  const pool = sameOrder.length > 0 ? sameOrder : quantities;
+
+  // …then the one stated for exactly the base serving amount…
+  if (base?.minQuantity !== undefined) {
+    const exact = pool.find((q) => q.servingSizeQuantity === base.minQuantity);
+    if (exact) return exact;
+  }
+
+  // …otherwise the smallest serving (the base dose), not a random column.
+  return [...pool].sort(
+    (a, b) =>
+      (a.servingSizeQuantity ?? Number.POSITIVE_INFINITY) -
+      (b.servingSizeQuantity ?? Number.POSITIVE_INFINITY),
+  )[0];
 }
 
 export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
@@ -95,11 +136,16 @@ export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
   if (!res.ok) throw new Error(`DSLD label fetch failed (${res.status})`);
   const label = (await res.json()) as DsldLabel;
 
+  // The base serving is the lowest-order column; import every ingredient for it.
+  const baseServing = [...(label.servingSizes ?? [])].sort(
+    (a, b) => (a.order ?? 0) - (b.order ?? 0),
+  )[0];
+
   const ingredients: IngredientDraft[] = [];
   for (const row of label.ingredientRows ?? []) {
     const name = row.name ?? "";
     if (!name) continue;
-    const q = row.quantity?.[0];
+    const q = pickServingQuantity(row.quantity, baseServing);
     if (!q || typeof q.quantity !== "number" || !q.unit) continue;
     if (parseUnit(q.unit) === null) continue; // skips Calories, %, etc.
     const formNames = (row.forms ?? [])
@@ -116,7 +162,7 @@ export async function getDsldProduct(labelId: string): Promise<ProductDraft> {
     });
   }
 
-  const serving = label.servingSizes?.[0];
+  const serving = baseServing;
   return {
     name: label.fullName ?? "Unknown product",
     brand: label.brandName ?? null,

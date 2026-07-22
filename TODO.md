@@ -43,8 +43,12 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   user can check the row against the IU printed on the bottle. Unit-tested
   against the Centrum figures (300 mcg RAE = 1000 IU, 900 mcg βC = 1500 IU,
   20 mcg D = 800 IU, 18 mg dl-α E = 40 IU).
-- [y] **C2 — DSLD multi-serving labels.** Import uses the first quantity row
-  per ingredient; multi-serving-column labels may mis-import.
+- [x] **C2 — DSLD multi-serving labels.** A label with a serving *range*
+  (e.g. "1-2 scoops") lists each ingredient once per serving column. Import now
+  picks the base serving consistently (`pickServingQuantity`: match the
+  column's order, then the exact base amount, then the smallest) instead of
+  blindly taking the first entry, and the serving-size string uses that base
+  column. Unit-tested; verified against MacroMeal (22.5 g / 45 g).
 - [x] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
   is in folic-acid mcg (×1.0). We compare to the UL 1:1 (safety-correct). The
   folate row's product-form `note` explains DFE and that %target is slightly
