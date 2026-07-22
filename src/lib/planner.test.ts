@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { NUTRIENT_BY_ID, matchNutrient } from "@/data/nutrients";
-import { getDri } from "@/data/dri";
+import { NUTRIENTS, NUTRIENT_BY_ID, matchNutrient } from "@/data/nutrients";
+import { getDri, type DriQuery } from "@/data/dri";
 import {
   EVERY_DAY,
   activeDayCount,
+  averageWeek,
   computeDay,
   isActiveOnDay,
+  iuEquivalent,
   parseUnit,
   toCanonicalAmount,
   weekdayFromDate,
@@ -42,6 +44,15 @@ describe("unit parsing", () => {
     expect(parseUnit("milligram")).toBe("mg");
     expect(parseUnit("International Units")).toBe("IU");
   });
+
+  it("reads the unit through a reference qualifier", () => {
+    // Centrum prints "300 mcg RAE/EAR/1000 IU", and Health Canada keeps the
+    // qualifier on the unit — these used to parse as blank.
+    expect(parseUnit("mcg RAE/EAR")).toBe("mcg");
+    expect(parseUnit("µg RE")).toBe("mcg");
+    expect(parseUnit("mg AT")).toBe("mg");
+    expect(parseUnit("iu/ui")).toBe("IU");
+  });
 });
 
 describe("IU conversions", () => {
@@ -72,6 +83,25 @@ describe("IU conversions", () => {
 
   it("rejects IU for nutrients without IU factors", () => {
     expect(toCanonicalAmount(magnesium, 100, "IU")).toBeNull();
+  });
+});
+
+describe("IU echo (label confirmation)", () => {
+  it("reproduces the IU printed on the Centrum label from the mass amount", () => {
+    // Vitamin A acetate 300 mcg RAE = 1000 IU
+    expect(iuEquivalent(vitA, 300, "mcg", "retinol")).toBeCloseTo(1000);
+    // Beta-Carotene 900 mcg = 1500 IU (via 450 mcg RAE)
+    expect(iuEquivalent(vitA, 900, "mcg", "beta_carotene")).toBeCloseTo(1500);
+    // Vitamin D 20 mcg = 800 IU
+    expect(iuEquivalent(vitD, 20, "mcg")).toBeCloseTo(800);
+    // Vitamin E 18 mg dl-alpha (synthetic) = 40 IU
+    expect(iuEquivalent(vitE, 18, "mg", "synthetic")).toBeCloseTo(40);
+  });
+
+  it("is null when the amount is already in IU or the nutrient has no IU form", () => {
+    expect(iuEquivalent(vitD, 800, "IU")).toBeNull();
+    expect(iuEquivalent(magnesium, 100, "mg")).toBeNull();
+    expect(iuEquivalent(vitA, 0, "mcg", "retinol")).toBeNull();
   });
 });
 
@@ -126,6 +156,53 @@ describe("DRI lookup", () => {
     expect(getDri("iron", adultFemale).recommended).toBe(18);
     expect(getDri("iron", adultMale).recommended).toBe(8);
     expect(getDri("vitamin_d", { sex: "male", age: 75 }).recommended).toBe(20);
+  });
+});
+
+describe("DRI target vs limit invariant", () => {
+  // A UL below the target would mean "you can't even reach the recommended
+  // amount without passing the safe limit" — for a total-intake figure that's a
+  // data-entry error, so this sweep guards the whole table against it.
+  //
+  // Magnesium is the one legitimate exception: its UL (350 mg for adults)
+  // applies to *supplemental* magnesium only, while the RDA (up to 420 mg) is
+  // TOTAL intake including food. Different bases, so UL < RDA is correct — and
+  // the supplemental figure is exactly what VitaPlan compares against. Any
+  // *other* nutrient tripping this check is a real bug in the DRI table.
+  const SUPPLEMENT_ONLY_UL_BELOW_RDA = new Set(["magnesium"]);
+
+  const ages = [2, 5, 10, 16, 25, 40, 55, 75];
+  const profiles: DriQuery[] = [];
+  for (const sex of ["male", "female"] as const) {
+    for (const age of ages) {
+      profiles.push({ sex, age });
+      // Pregnancy/lactation rows only exist for ages 14+.
+      if (age >= 14) {
+        profiles.push({ sex, age, pregnant: true });
+        profiles.push({ sex, age, lactating: true });
+      }
+    }
+  }
+
+  it("keeps every UL at or above the target (magnesium excepted)", () => {
+    for (const nutrient of NUTRIENTS) {
+      if (SUPPLEMENT_ONLY_UL_BELOW_RDA.has(nutrient.id)) continue;
+      for (const profile of profiles) {
+        const { recommended, ul } = getDri(nutrient.id, profile);
+        if (recommended === null || ul === null) continue;
+        expect(
+          ul,
+          `${nutrient.id} UL ${ul} < target ${recommended} for ${JSON.stringify(profile)}`,
+        ).toBeGreaterThanOrEqual(recommended);
+      }
+    }
+  });
+
+  it("confirms magnesium's supplemental UL is intentionally below its RDA", () => {
+    // Guards the exception itself: if the data ever changes so magnesium no
+    // longer trips the rule, this fails and the allowlist above can be removed.
+    const mg = getDri("magnesium", { sex: "male", age: 40 });
+    expect(mg.ul).toBeLessThan(mg.recommended!);
   });
 });
 
@@ -272,5 +349,51 @@ describe("whatIf", () => {
     );
     expect(result2.before.overUl).toHaveLength(0);
     expect(result2.newlyOverUl.map((r) => r.nutrient.id)).toEqual(["vitamin_d"]);
+  });
+});
+
+describe("averageWeek", () => {
+  it("divides a partial-week product by 7 (Mon/Wed/Fri magnesium)", () => {
+    const monWedFri = 0b0010101; // 3 of 7 days
+    const plan = averageWeek(
+      [multiProduct],
+      [{ productId: 2, servingsPerDay: 1, daysOfWeek: monWedFri }],
+      adultMale,
+    );
+    // 100 mg on 3 days, 0 on the other 4 → (3 × 100) / 7 ≈ 42.86 mg/day
+    expect(plan.rows.find((r) => r.nutrient.id === "magnesium")!.total).toBeCloseTo(
+      300 / 7,
+    );
+  });
+
+  it("equals the daily amount for an every-day product", () => {
+    const plan = averageWeek(
+      [multiProduct],
+      [{ productId: 2, servingsPerDay: 1, daysOfWeek: EVERY_DAY }],
+      adultMale,
+    );
+    expect(plan.rows.find((r) => r.nutrient.id === "magnesium")!.total).toBeCloseTo(100);
+  });
+
+  it("can sit under a limit on average that a heavy day exceeds", () => {
+    // 5000 IU D3 (125 mcg) taken one day a week: over the 100 mcg UL that day,
+    // but 125/7 ≈ 17.9 mcg on average — comfortably under.
+    const oneDay = 0b0000001; // Monday only
+    const day = computeDay(
+      [d3Product],
+      [{ productId: 1, servingsPerDay: 1, daysOfWeek: oneDay }],
+      0,
+      adultMale,
+    );
+    expect(day.rows.find((r) => r.nutrient.id === "vitamin_d")!.status).toBe("over-ul");
+
+    const avg = averageWeek(
+      [d3Product],
+      [{ productId: 1, servingsPerDay: 1, daysOfWeek: oneDay }],
+      adultMale,
+    );
+    const d = avg.rows.find((r) => r.nutrient.id === "vitamin_d")!;
+    expect(d.total).toBeCloseTo(125 / 7);
+    expect(d.status).not.toBe("over-ul");
   });
 });

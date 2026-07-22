@@ -21,9 +21,7 @@ export type { DriQuery } from "@/data/dri";
 
 export type ParsedUnit = "mcg" | "mg" | "g" | "IU";
 
-/** Normalize the many ways labels spell units; null when unrecognized. */
-export function parseUnit(raw: string): ParsedUnit | null {
-  const u = raw.trim().toLowerCase();
+function matchUnitToken(u: string): ParsedUnit | null {
   // Health Canada's API spells units out ("micrograms"), while labels/DSLD use
   // abbreviations ("mcg"). Accept both, singular and plural.
   if (
@@ -46,6 +44,18 @@ export function parseUnit(raw: string): ParsedUnit | null {
   )
     return "IU";
   return null;
+}
+
+/** Normalize the many ways labels spell units; null when unrecognized. */
+export function parseUnit(raw: string): ParsedUnit | null {
+  const u = raw.trim().toLowerCase();
+  const direct = matchUnitToken(u);
+  if (direct) return direct;
+  // Labels append a reference qualifier to the unit — "mcg RAE/EAR", "mg AT",
+  // "µg RE" — and Health Canada carries it into the API's unit field. Fall back
+  // to the leading mass/IU token so "mcg RAE" parses as mcg rather than blank.
+  const lead = u.split(/[\s/]+/)[0];
+  return lead === u ? null : matchUnitToken(lead);
 }
 
 const MASS_IN_MCG: Record<Exclude<ParsedUnit, "IU">, number> = {
@@ -86,6 +96,32 @@ export function toCanonicalAmount(
     return canonical * factor;
   }
   return canonical;
+}
+
+/**
+ * IU equivalent of a mass amount, for the nutrients that labels still print in
+ * IU (vitamins A, D, E, and β-carotene as a vitamin-A form). Lets the product
+ * form echo "≈ 1,000 IU" back to the user so they can confirm a row matches the
+ * IU on their bottle. Returns null when the row isn't a mass amount of an
+ * IU-labelled nutrient — e.g. the amount is already entered in IU.
+ *
+ * The canonical conversion already folds in the mass→form factor (β-carotene
+ * ×0.5), and iuFactors are expressed per canonical unit, so dividing the
+ * canonical amount by the form's IU factor reproduces the label's IU figure.
+ */
+export function iuEquivalent(
+  nutrient: NutrientDef,
+  amount: number,
+  rawUnit: string,
+  form?: string | null,
+): number | null {
+  const factors = nutrient.iuFactors;
+  if (!factors || parseUnit(rawUnit) === "IU") return null;
+  const canonical = toCanonicalAmount(nutrient, amount, rawUnit, form);
+  if (canonical === null || canonical <= 0) return null;
+  const factor = (form && factors[form.toLowerCase()]) || factors.default;
+  if (!factor) return null;
+  return canonical / factor;
 }
 
 /* ------------------------------------------------------------------ */
@@ -264,6 +300,92 @@ export function computeWeek(
   );
 }
 
+/**
+ * Collapse a set of day-plans into a single "average per day" plan: sum each
+ * nutrient's total (and per-product contribution) across the days and divide by
+ * their count. A product taken only some days contributes 0 on the others, so a
+ * 3-day-a-week supplement averages to 3/7 of its dose — this is the true
+ * average daily intake, the number to compare against a daily RDA/UL.
+ *
+ * Rows and status are recomputed from the averaged total, so a nutrient can
+ * read "over limit" on its heaviest day yet sit safely under it on average.
+ */
+function averagePlans(days: DayPlan[], profile: DriQuery): DayPlan {
+  const divisor = days.length || 1;
+
+  // Every product active on any day, in first-seen order, for the column set.
+  const products: ProductInput[] = [];
+  const seenProduct = new Set<number>();
+  for (const d of days) {
+    for (const p of d.products) {
+      if (!seenProduct.has(p.id)) {
+        seenProduct.add(p.id);
+        products.push(p);
+      }
+    }
+  }
+
+  const summed = new Map<
+    string,
+    { total: number; contributions: Record<number, number> }
+  >();
+  for (const d of days) {
+    for (const row of d.rows) {
+      const acc = summed.get(row.nutrient.id) ?? { total: 0, contributions: {} };
+      acc.total += row.total;
+      for (const [pid, amt] of Object.entries(row.contributions)) {
+        acc.contributions[Number(pid)] = (acc.contributions[Number(pid)] ?? 0) + amt;
+      }
+      summed.set(row.nutrient.id, acc);
+    }
+  }
+
+  const rows: NutrientRow[] = [];
+  for (const nutrient of NUTRIENTS) {
+    const acc = summed.get(nutrient.id);
+    if (!acc) continue;
+    const total = acc.total / divisor;
+    if (total <= 0) continue;
+
+    const contributions: Record<number, number> = {};
+    for (const [pid, amt] of Object.entries(acc.contributions)) {
+      contributions[Number(pid)] = amt / divisor;
+    }
+
+    const dri = getDri(nutrient.id, profile);
+    rows.push({
+      nutrient,
+      contributions,
+      total,
+      recommended: dri.recommended,
+      isAI: dri.isAI,
+      ul: dri.ul,
+      pctRecommended:
+        dri.recommended !== null ? (total / dri.recommended) * 100 : null,
+      pctUl: dri.ul !== null ? (total / dri.ul) * 100 : null,
+      status: statusFor(total, dri.recommended, dri.ul),
+    });
+  }
+
+  return {
+    // No single weekday owns an average; callers key the average view off their
+    // own mode flag, not this field.
+    day: 0 as Weekday,
+    products,
+    rows,
+    overUl: rows.filter((r) => r.status === "over-ul"),
+  };
+}
+
+/** Average daily intake across the week (each nutrient's weekly total ÷ 7). */
+export function averageWeek(
+  products: ProductInput[],
+  regimen: RegimenItemInput[],
+  profile: DriQuery,
+): DayPlan {
+  return averagePlans(computeWeek(products, regimen, profile), profile);
+}
+
 /* ------------------------------------------------------------------ */
 /* What-if                                                             */
 /* ------------------------------------------------------------------ */
@@ -299,6 +421,40 @@ export function whatIf(
       },
     ],
     day,
+    profile,
+  );
+
+  const beforeOver = new Set(before.overUl.map((r) => r.nutrient.id));
+  return {
+    before,
+    after,
+    newlyOverUl: after.overUl.filter((r) => !beforeOver.has(r.nutrient.id)),
+  };
+}
+
+/**
+ * Weekly-average counterpart of {@link whatIf}: adds the candidate every day and
+ * compares averaged plans, so "what if I add this" answers hold up in the
+ * average-per-day view too.
+ */
+export function whatIfAverage(
+  products: ProductInput[],
+  regimen: RegimenItemInput[],
+  candidate: ProductInput,
+  candidateServings: number,
+  profile: DriQuery,
+): WhatIfResult {
+  const before = averageWeek(products, regimen, profile);
+  const after = averageWeek(
+    [...products.filter((p) => p.id !== candidate.id), candidate],
+    [
+      ...regimen.filter((r) => r.productId !== candidate.id),
+      {
+        productId: candidate.id,
+        servingsPerDay: candidateServings,
+        daysOfWeek: EVERY_DAY,
+      },
+    ],
     profile,
   );
 

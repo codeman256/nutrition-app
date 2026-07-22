@@ -27,7 +27,13 @@ interface DsldHit {
   _source: {
     fullName?: string;
     brandName?: string;
+    // Search results almost never carry the UPC (it's on the full label), but
+    // keep reading it for the rare hit that does.
     upcSku?: string;
+    offMarket?: number;
+    netContents?: { display?: string; quantity?: number; unit?: string }[];
+    productType?: { langualCodeDescription?: string };
+    physicalState?: { langualCodeDescription?: string };
   };
 }
 
@@ -36,13 +42,24 @@ export async function searchDsld(query: string, size = 12): Promise<SearchHit[]>
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`DSLD search failed (${res.status})`);
   const body = (await res.json()) as { hits?: DsldHit[] };
-  return (body.hits ?? []).map((hit) => ({
-    source: "dsld",
-    sourceId: hit._id,
-    name: hit._source.fullName ?? "Unknown product",
-    brand: hit._source.brandName ?? null,
-    upc: hit._source.upcSku?.replace(/\D/g, "") || null,
-  }));
+  // DSLD lists many near-identical products (several "Centrum Specialist
+  // Energy" rows). Surface what tells them apart: count/form, category, and
+  // whether the product is still on the market. The DSLD id (sourceId) is a
+  // unique tiebreaker shown in the UI when two rows read the same.
+  return (body.hits ?? []).map((hit) => {
+    const s = hit._source;
+    return {
+      source: "dsld",
+      sourceId: hit._id,
+      name: s.fullName ?? "Unknown product",
+      brand: s.brandName ?? null,
+      upc: s.upcSku?.replace(/\D/g, "") || null,
+      netContents: s.netContents?.find((n) => n.display)?.display ?? null,
+      productType: s.productType?.langualCodeDescription ?? null,
+      form: s.physicalState?.langualCodeDescription ?? null,
+      discontinued: s.offMarket === 1,
+    };
+  });
 }
 
 export async function searchDsldByUpc(code: string): Promise<SearchHit[]> {

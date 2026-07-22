@@ -414,12 +414,32 @@ function SearchTab({
                   {[
                     hit.brand,
                     hit.npn ? `NPN ${hit.npn}` : null,
-                    hit.source === "lnhpd" ? "Health Canada" : "NIH DSLD",
-                    hit.discontinued ? "no longer active" : null,
+                    hit.source === "lnhpd"
+                      ? "Health Canada"
+                      : `NIH DSLD #${hit.sourceId}`,
+                    hit.discontinued
+                      ? hit.source === "lnhpd"
+                        ? "no longer active"
+                        : "no longer on the market"
+                      : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {/* DSLD carries several near-identical rows per product; this
+                    line — count/form, category, UPC when present — is what tells
+                    them apart. */}
+                {(hit.netContents || hit.form || hit.productType || hit.upc) && (
+                  <span className="text-xs text-muted-foreground">
+                    {[
+                      hit.upc ? `UPC ${hit.upc}` : null,
+                      hit.netContents ?? hit.form,
+                      hit.productType,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
                 {hit.names && hit.names.length > 1 && (
                   <span className="text-xs text-muted-foreground">
                     Also sold as {hit.names[1]}

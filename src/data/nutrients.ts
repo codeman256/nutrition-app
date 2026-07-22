@@ -38,6 +38,12 @@ export interface NutrientDef {
   dailyValue?: number;
   /** Short plain-language help shown on the product form for tricky rows. */
   note?: string;
+  /**
+   * Why this nutrient's upper limit is on a special basis — shown as a tooltip
+   * on the dashboard's Limit cell (e.g. magnesium's UL is supplements-only, so
+   * it can sit below the food-inclusive target).
+   */
+  limitNote?: string;
   sortOrder: number;
 }
 
@@ -56,6 +62,8 @@ export const NUTRIENTS: NutrientDef[] = [
       { value: "beta_carotene", label: "Beta-carotene" },
     ],
     note: "Bottles often list two vitamin A lines. A “Vitamin A (retinyl…) mcg RAE” line is already RAE — pick Retinol. A separate “Beta-Carotene ___ mcg” line is a different form: pick Beta-carotene and VitaPlan converts it (2 mcg β-carotene = 1 mcg RAE). Enter each line as its own row.",
+    limitNote:
+      "Vitamin A toxicity comes from preformed vitamin A (retinyl/retinol in animal foods and supplements), not from beta-carotene — the body limits how much it converts. VitaPlan counts both toward this limit to stay cautious, so if much of your intake is beta-carotene your true risk is lower than the %Limit suggests.",
     sortOrder: 10,
   },
   {
@@ -87,6 +95,8 @@ export const NUTRIENTS: NutrientDef[] = [
       { value: "synthetic", label: "Synthetic (dl-alpha / all-rac-)" },
     ],
     note: "If the label gives IU, the natural (d-alpha) vs synthetic (dl-alpha) form changes the conversion. Modern labels in mg are already alpha-tocopherol — leave the form as-is.",
+    limitNote:
+      "This limit is for supplemental vitamin E (any alpha-tocopherol form), not the vitamin E naturally in food. It's based on a bleeding risk at high supplemental doses.",
     sortOrder: 40,
   },
   {
@@ -115,6 +125,8 @@ export const NUTRIENTS: NutrientDef[] = [
     name: "Niacin (B3)",
     unit: "mg", // mg NE
     aliases: ["niacin", "niacinamide", "nicotinamide", "vitamin b3", "vitamin b-3"],
+    limitNote:
+      "This limit is for niacin added to supplements and fortified foods, not the niacin naturally in food. It's based on skin flushing, mainly from the nicotinic-acid form.",
     sortOrder: 80,
   },
   {
@@ -130,6 +142,8 @@ export const NUTRIENTS: NutrientDef[] = [
     unit: "mcg", // mcg DFE
     aliases: ["folate", "folic acid", "folacin", "methylfolate", "vitamin b9"],
     note: "Enter the mcg printed on the label. The safe upper limit is set for synthetic folic acid, so VitaPlan compares your total to it directly. (The RDA is technically in DFE, where folic acid counts 1.7×, so your % of target is slightly conservative.)",
+    limitNote:
+      "This limit is for synthetic folic acid (in supplements and fortified foods), not the folate naturally in food. VitaPlan compares your supplement total to it directly.",
     sortOrder: 100,
   },
   {
@@ -179,6 +193,8 @@ export const NUTRIENTS: NutrientDef[] = [
     name: "Magnesium",
     unit: "mg",
     aliases: ["magnesium"],
+    limitNote:
+      "This limit applies to magnesium from supplements only, not the magnesium in food. Food counts toward the target but not the limit — which is why the limit can sit below the target. (Too much supplemental magnesium causes diarrhea; magnesium from food doesn't.)",
     sortOrder: 240,
   },
   {
@@ -249,6 +265,8 @@ export const NUTRIENTS: NutrientDef[] = [
     name: "Sodium",
     unit: "mg",
     aliases: ["sodium"],
+    limitNote:
+      "This is the Chronic Disease Risk Reduction (CDRR) intake, not a toxicity limit: staying under it is expected to lower blood-pressure and heart-disease risk.",
     sortOrder: 310,
   },
 ];
@@ -303,6 +321,9 @@ export function guessForm(name: string): string | null {
   const t = name.toLowerCase();
   if (t.includes("beta-carotene") || t.includes("beta carotene")) return "beta_carotene";
   if (t.includes("retinyl") || t.includes("retinol")) return "retinol";
+  // "Vitamin A acetate / palmitate" are preformed (retinyl) esters — already RAE.
+  if (/vitamin a\b/.test(t) && (t.includes("acetate") || t.includes("palmitate")))
+    return "retinol";
   if (t.includes("cholecalciferol") || /\bd3\b/.test(t)) return "d3";
   if (t.includes("ergocalciferol") || /\bd2\b/.test(t)) return "d2";
   if (/\bdl-/.test(t) || t.includes("all-rac")) return "synthetic";

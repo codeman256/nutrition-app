@@ -402,6 +402,27 @@ export async function searchLnhpd(query: string, limit = 12): Promise<SearchHit[
   return hits.map((h) => h.hit);
 }
 
+/**
+ * A single bottle line often arrives from the API as two rows: one in a mass
+ * unit and one in IU. Centrum's "Beta-Carotene 900 mcg / 1500 IU" comes back as
+ * a 900 mcg row and a 1500 IU row — same nutrient, same form, one physical line.
+ * Keep the mass row (the app converts it) and drop the IU twin. We only ever
+ * remove IU rows that have a mass sibling, so two genuine mass sources of one
+ * nutrient (e.g. calcium carbonate + phosphate) are both preserved.
+ */
+function collapseUnitTwins(rows: IngredientDraft[]): IngredientDraft[] {
+  const twinKey = (r: IngredientDraft) =>
+    `${r.nutrientId ?? r.label.toLowerCase()}|${r.form ?? ""}`;
+  const hasMass = new Set<string>();
+  for (const r of rows) {
+    const unit = parseUnit(r.unit ?? "");
+    if (unit && unit !== "IU") hasMass.add(twinKey(r));
+  }
+  return rows.filter(
+    (r) => parseUnit(r.unit ?? "") !== "IU" || !hasMass.has(twinKey(r)),
+  );
+}
+
 interface LnhpdIngredient {
   ingredient_name?: string;
   quantity?: number;
@@ -474,6 +495,6 @@ export async function getLnhpdProduct(lnhpdId: string): Promise<ProductDraft> {
     npn: indexed?.licenceNumber ?? null,
     servingSize: indexed?.dosageForm ? `1 ${indexed.dosageForm}` : null,
     source: "lnhpd",
-    ingredients,
+    ingredients: collapseUnitTwins(ingredients),
   };
 }

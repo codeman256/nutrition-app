@@ -7,14 +7,16 @@ import {
   Download,
   ExternalLink,
   FlaskConical,
+  Info,
   Minus,
   TriangleAlert,
 } from "lucide-react";
 import {
-  EVERY_DAY,
   WEEKDAY_LABELS,
+  averageWeek,
   computeDay,
   whatIf,
+  whatIfAverage,
   type DriQuery,
   type NutrientRow,
   type ProductInput,
@@ -117,25 +119,34 @@ export function DashboardView({
   today: Weekday;
 }) {
   const [day, setDay] = useState<Weekday>(today);
+  // Weekly-average-per-day view, chosen with the "Avg" tab beside the weekdays.
+  const [avg, setAvg] = useState(false);
   const [unitMode, setUnitMode] = useState<UnitMode>("label");
   const [whatIfId, setWhatIfId] = useState<string>(NONE);
   const [whatIfServings, setWhatIfServings] = useState(1);
 
   const inRegimen = new Set(regimen.map((r) => r.productId));
+  // What the current view represents, for headings and messages.
+  const periodLabel = avg ? "an average day this week" : WEEKDAY_LABELS[day];
 
   const result = useMemo(() => {
     if (whatIfId !== NONE) {
       const candidate = products.find((p) => p.id === Number(whatIfId));
       if (candidate) {
-        return whatIf(products, regimen, candidate, whatIfServings, day, profile);
+        return avg
+          ? whatIfAverage(products, regimen, candidate, whatIfServings, profile)
+          : whatIf(products, regimen, candidate, whatIfServings, day, profile);
       }
     }
     return null;
-  }, [whatIfId, whatIfServings, products, regimen, day, profile]);
+  }, [avg, whatIfId, whatIfServings, products, regimen, day, profile]);
 
   const basePlan = useMemo(
-    () => computeDay(products, regimen, day, profile),
-    [products, regimen, day, profile],
+    () =>
+      avg
+        ? averageWeek(products, regimen, profile)
+        : computeDay(products, regimen, day, profile),
+    [avg, products, regimen, day, profile],
   );
   const plan = result ? result.after : basePlan;
 
@@ -178,7 +189,9 @@ export function DashboardView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `vitaplan-${WEEKDAY_LABELS[day].toLowerCase()}.csv`;
+    a.download = avg
+      ? "vitaplan-weekly-average.csv"
+      : `vitaplan-${WEEKDAY_LABELS[day].toLowerCase()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -186,7 +199,17 @@ export function DashboardView({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={String(day)} onValueChange={(v) => setDay(Number(v) as Weekday)}>
+        <Tabs
+          value={avg ? "avg" : String(day)}
+          onValueChange={(v) => {
+            if (v === "avg") {
+              setAvg(true);
+            } else {
+              setAvg(false);
+              setDay(Number(v) as Weekday);
+            }
+          }}
+        >
           <TabsList aria-label="Day of week">
             {WEEKDAY_LABELS.map((label, i) => (
               <TabsTrigger key={label} value={String(i)} title={label}>
@@ -194,6 +217,15 @@ export function DashboardView({
                 <span className="sr-only">{label}</span>
               </TabsTrigger>
             ))}
+            {/* Weekly average per day: each nutrient's 7-day total ÷ 7. */}
+            <TabsTrigger
+              value="avg"
+              title="Average per day across the whole week (weekly total ÷ 7)"
+              className="border-l"
+            >
+              <span aria-hidden="true">Avg</span>
+              <span className="sr-only">Weekly average per day</span>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
@@ -225,7 +257,7 @@ export function DashboardView({
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertTitle>
-            Over the safe upper limit on {WEEKDAY_LABELS[day]}
+            Over the safe upper limit on {periodLabel}
           </AlertTitle>
           <AlertDescription>
             {plan.overUl.map((row) => describeOverUl(row, unitMode)).join(" · ")}
@@ -234,9 +266,12 @@ export function DashboardView({
       )}
 
       <p className="text-sm text-muted-foreground">
-        Amounts are per day. Every number left of the <strong>Unit</strong>{" "}
-        column is in that unit; everything right of it is a percentage.
-        Underlined column names have a definition on hover.
+        {avg
+          ? "Amounts are your average per day this week — each nutrient's 7-day total divided by 7, counting days you don't take a product as zero. "
+          : "Amounts are per day. "}
+        Every number left of the <strong>Unit</strong> column is in that unit;
+        everything right of it is a percentage. Underlined column names have a
+        definition on hover.
         {unitMode === "iu" && (
           <> Only vitamins A, D and E have an IU — the rest keep their own unit.</>
         )}
@@ -244,8 +279,10 @@ export function DashboardView({
 
       {plan.rows.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Nothing scheduled for {WEEKDAY_LABELS[day]}. Set up your regimen to
-          see totals here.
+          {avg
+            ? "Nothing scheduled this week yet."
+            : `Nothing scheduled for ${WEEKDAY_LABELS[day]}.`}{" "}
+          Set up your regimen to see totals here.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
@@ -339,7 +376,29 @@ export function DashboardView({
                       )}
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {row.ul !== null ? scaled(row.ul) : "—"}
+                      {row.ul !== null ? (
+                        <span className="inline-flex items-center gap-1">
+                          {scaled(row.ul)}
+                          {row.nutrient.limitNote && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  tabIndex={0}
+                                  className="cursor-help text-muted-foreground"
+                                  aria-label={`Why ${row.nutrient.name}'s limit is set this way`}
+                                >
+                                  <Info className="size-3.5" aria-hidden="true" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-72">
+                                {row.nutrient.limitNote}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="border-r text-muted-foreground">
                       {unit}
@@ -447,7 +506,7 @@ export function DashboardView({
             <Check aria-hidden="true" />
             <AlertTitle>Nothing new goes over its limit</AlertTitle>
             <AlertDescription>
-              The grid above now includes this addition for {WEEKDAY_LABELS[day]}.
+              The grid above now includes this addition for {periodLabel}.
             </AlertDescription>
           </Alert>
         )}

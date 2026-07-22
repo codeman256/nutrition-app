@@ -22,18 +22,27 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [ ] **B4 — Barcode scan gives no confirmation.** Hard to capture; when it
   does, show the detected number in a field so the user can confirm it's
   right before/while looking up.
-- [y] **B5 — Regimen weekday toggles look unselected.** All 7 days are ON by
+- [x] **B5 — Regimen weekday toggles look unselected.** All 7 days are ON by
   default when a product is enabled, but the styling made the user think they
   were off and they deselected. Make "all days" state obvious (e.g. an
   "Every day" chip / clearer active styling / helper text).
 
 ## Correctness (+ on-site education the user asked for)
 
-- [y] **C1 — Vitamin A forms (RAE).** Beta-carotene supplement factor was
-  wrong (0.15; should be **0.5** mcg RAE per mcg β-carotene, and **0.3** IU→
-  RAE). Centrum lists "Vitamin A (acetate) 300 mcg RAE" + "Beta-Carotene
-  900 mcg" — both are vitamin A but the β-carotene 900 mcg = 450 mcg RAE.
-  Add a **form** picker for vitamin A rows and convert mass by form.
+- [x] **C1 — Vitamin A forms (RAE).** Beta-carotene factor fixed (0.5 mcg RAE
+  per mcg β-carotene, 0.3 IU→RAE) and a **form** picker converts mass by form.
+  The Centrum NPN import used to add three vitamin-A rows — "acetate 300 [blank
+  unit]" plus a doubled "Beta-Carotene 900 mcg" **and** "1500 IU". Fixed:
+  `parseUnit` now reads the unit through a reference qualifier ("mcg RAE/EAR" →
+  mcg), and the importer collapses a mass/IU twin to one row (keeps 900 mcg,
+  drops the 1500 IU duplicate). Import now yields one acetate + one β-carotene
+  row, matching the bottle.
+- [x] **C5 — IU label confirmation.** Rows for the IU-labelled nutrients
+  (A/D/E, β-carotene) echo the calculated conversion on the product form — a
+  mass amount shows "= 1,000 IU", an IU amount shows its tracked mass — so the
+  user can check the row against the IU printed on the bottle. Unit-tested
+  against the Centrum figures (300 mcg RAE = 1000 IU, 900 mcg βC = 1500 IU,
+  20 mcg D = 800 IU, 18 mg dl-α E = 40 IU).
 - [y] **C2 — DSLD multi-serving labels.** Import uses the first quantity row
   per ingredient; multi-serving-column labels may mis-import.
 - [y] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
@@ -57,6 +66,12 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [x] **D5 — Show % Daily Value** column alongside % target (was F1).
 - [y] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
   as the grid grows.
+- [x] **D7 — Weekly-average-per-day view.** An "Avg" tab beside the weekdays
+  shows average daily intake — each nutrient's 7-day total ÷ 7, counting
+  non-dose days as zero. So a supplement taken 3×/week averages to 3/7 of its
+  dose, and a nutrient can read over-limit on its heaviest day yet sit under
+  the UL on average. What-if, the over-limit alert, and CSV export all follow
+  the selected view. Unit-tested (`averageWeek`).
 
 ## Products
 
@@ -65,7 +80,22 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [y] **P2 — Barcode → no nutrients (Centrum via OFF).** Open Food Facts
   returned the product but no amounts; NPN import worked. When a UPC hit has
   zero usable ingredients, tell the user and nudge toward NPN/label/manual.
-- [~] **F5 — OCR preprocessing** (grayscale/threshold before tesseract).
+- [x] **F5 — OCR preprocessing.** Grayscale → **Otsu binarization** (was a
+  contrast stretch), higher working resolution (2600 px), and
+  `preserve_interword_spaces` so the name↔amount split survives the dot
+  leaders. Helps, but curved/glossy bottles with a wide two-column layout
+  still read poorly — NPN import remains the reliable path; F4 (AI reading) is
+  the real fix.
+- [x] **P3 — Ingredient count on the form.** Add/edit product now shows a
+  "N ingredients" badge (filled rows only) so the user can count the bottle's
+  lines against what imported.
+- [x] **P4 — Distinguish near-identical DSLD hits.** NIH search lists many
+  look-alike rows (several "Centrum Specialist Energy"). Results now show the
+  **DSLD id**, net contents ("60 Tablet(s)"), product type ("Multi-Vitamin and
+  Mineral"), and an off-market flag, plus UPC on the rare hit that has one.
+  (Probed the API: `search-filter` returns `upcSku: null` almost always — the
+  barcode lives on the full label, not in search — so count/form/id are the
+  workable differentiators.)
 - [ ] **F4 — Optional AI label reading** (Claude API, bring-your-own-key).
 - [y] **F2 — Stock tracking** (days-remaining/low-stock from servings/container).
 - [ ] **F6 — Adherence check-off.**
@@ -94,6 +124,10 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   hides the app chrome).
 - [x] **Q1 — Playwright e2e suite** in CI (smoke: health probe, auth redirect,
   sign-up → consent → profile). Runs against `next dev` on a throwaway DB.
+- [x] **Q3 — Unit tests use a disposable DB.** The LNHPD tests seed/wipe
+  `lnhpd_index`; they now run against `./data/vitaplan.test.db` (set via
+  `test.env`, deleted by a globalSetup) so `npm test` no longer clears the
+  developer's downloaded ~300k-row index.
 - [ ] **Q2 — Automated axe/Lighthouse a11y pass** in CI.
 
 ## Done

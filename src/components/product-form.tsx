@@ -13,9 +13,11 @@ import {
   ArrowDown,
   ArrowUpDown,
   Camera,
+  Calculator,
   Loader2,
 } from "lucide-react";
 import { NUTRIENTS, NUTRIENT_BY_ID, guessForm, matchNutrient } from "@/data/nutrients";
+import { iuEquivalent, parseUnit, toCanonicalAmount } from "@/lib/planner";
 import { resolvePill, serializePill } from "@/data/pills";
 import { PillDesigner } from "@/components/pill-designer";
 import { saveProduct, type SaveProductInput } from "@/lib/actions/products";
@@ -34,6 +36,13 @@ import {
 const UNTRACKED = "__untracked__";
 // Radix Select can't use an empty-string value, so a blank unit is a sentinel.
 const NO_UNIT = "__no_unit__";
+
+// Labels print IU as whole numbers; masses read cleanest at three significant
+// figures ("300", "1.5"). Both go through the locale grouping so 1,000 reads
+// like the bottle.
+const fmtIu = (v: number) => new Intl.NumberFormat().format(Math.round(v));
+const fmtMass = (v: number) =>
+  new Intl.NumberFormat().format(Number(v.toPrecision(3)));
 
 export function ProductForm({
   draft,
@@ -151,6 +160,12 @@ export function ProductForm({
 
   const imageSrc = imagePath ? `/api/uploads/${imagePath}` : draft.imageUrl;
 
+  // Count only rows the user has actually filled in, so the number lines up with
+  // the ingredient lines printed on the bottle (the blank starter row doesn't).
+  const filledCount = ingredients.filter(
+    (r) => r.label.trim() !== "" || r.amountPerServing > 0,
+  ).length;
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
@@ -255,7 +270,15 @@ export function ProductForm({
 
       <fieldset className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <legend className="text-sm font-medium">Ingredients per serving</legend>
+          <legend className="flex items-center gap-2 text-sm font-medium">
+            Ingredients per serving
+            <span
+              className="rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground"
+              title="Filled-in rows — compare this to the number of ingredient lines on your bottle."
+            >
+              {filledCount} {filledCount === 1 ? "ingredient" : "ingredients"}
+            </span>
+          </legend>
           {ingredients.length > 1 && (
             <Button
               type="button"
@@ -277,6 +300,19 @@ export function ProductForm({
         </p>
         {ingredients.map((row, i) => {
           const def = row.nutrientId ? NUTRIENT_BY_ID.get(row.nutrientId) : null;
+          // For nutrients labelled in IU (A/D/E, and β-carotene as a vitamin-A
+          // form) echo the conversion so the user can confirm the row matches
+          // the bottle: a mass amount shows its IU, an IU amount shows its mass.
+          const iuEcho =
+            def?.iuFactors && row.amountPerServing > 0
+              ? iuEquivalent(def, row.amountPerServing, row.unit ?? "", row.form)
+              : null;
+          const massEcho =
+            def?.iuFactors &&
+            row.amountPerServing > 0 &&
+            parseUnit(row.unit ?? "") === "IU"
+              ? toCanonicalAmount(def, row.amountPerServing, row.unit ?? "", row.form)
+              : null;
           return (
           <div
             key={i}
@@ -399,7 +435,7 @@ export function ProductForm({
                   <SelectItem value="mg">mg</SelectItem>
                   <SelectItem value="g">g</SelectItem>
                   <SelectItem value="IU">IU</SelectItem>
-                  <SelectItem value={NO_UNIT}>— none</SelectItem>
+                  <SelectItem value={NO_UNIT}>—</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -440,6 +476,28 @@ export function ProductForm({
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
               <span>{def.note}</span>
+            </p>
+          )}
+          {iuEcho !== null && (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Calculator className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                ={" "}
+                <span className="font-medium text-foreground">{fmtIu(iuEcho)} IU</span>{" "}
+                — should match the IU printed on your label.
+              </span>
+            </p>
+          )}
+          {massEcho !== null && (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Calculator className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                ={" "}
+                <span className="font-medium text-foreground">
+                  {fmtMass(massEcho)} {def!.unit}
+                </span>{" "}
+                — the mass equivalent VitaPlan tracks for this row.
+              </span>
             </p>
           )}
           </div>

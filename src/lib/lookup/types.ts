@@ -39,6 +39,12 @@ export interface SearchHit {
   brand?: string | null;
   upc?: string | null;
   npn?: string | null;
-  /** true when no name on the licence is currently active */
+  /** DSLD: net contents like "60 Tablet(s)" — tells near-identical rows apart */
+  netContents?: string | null;
+  /** DSLD: product category, e.g. "Multi-Vitamin and Mineral (MVM)" */
+  productType?: string | null;
+  /** dosage form, e.g. "Tablet or Pill" / "Capsule" */
+  form?: string | null;
+  /** true when the product is off-market (DSLD) or the licence is inactive (LNHPD) */
   discontinued?: boolean;
 }

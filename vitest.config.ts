@@ -9,10 +9,13 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts"],
+    // The LNHPD tests seed and wipe lnhpd_index. Point them at a disposable
+    // database so `npm test` never touches the developer's downloaded index.
+    // globalSetup deletes this file before and after the run.
+    env: { DATABASE_PATH: "./data/vitaplan.test.db" },
+    globalSetup: ["./vitest.setup-db.ts"],
     // Two test files seed fixtures into lnhpd_index on the same SQLite file, so
     // run files sequentially rather than letting them race each other.
-    // Note: these tests wipe lnhpd_index, so `npm test` clears any downloaded
-    // LNHPD index in the local dev database — re-sync it from the Admin page.
     fileParallelism: false,
   },
 });
