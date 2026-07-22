@@ -9,6 +9,7 @@ import {
   FlaskConical,
   Info,
   Minus,
+  Rows3,
   TriangleAlert,
 } from "lucide-react";
 import {
@@ -160,6 +161,8 @@ export function DashboardView({
   // Weekly-average-per-day view, chosen with the "Avg" tab beside the weekdays.
   const [avg, setAvg] = useState(false);
   const [unitMode, setUnitMode] = useState<UnitMode>("label");
+  // Compact mode tightens the grid for people tracking many products (D6).
+  const [compact, setCompact] = useState(false);
   const [whatIfId, setWhatIfId] = useState<string>(NONE);
   const [whatIfServings, setWhatIfServings] = useState(1);
 
@@ -285,6 +288,16 @@ export function DashboardView({
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant={compact ? "default" : "outline"}
+            size="sm"
+            className="gap-1"
+            aria-pressed={compact}
+            title="Tighter rows for many products"
+            onClick={() => setCompact((v) => !v)}
+          >
+            <Rows3 className="size-4" aria-hidden="true" /> Compact
+          </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={exportCsv}>
             <Download className="size-4" aria-hidden="true" /> Export CSV
           </Button>
@@ -323,7 +336,14 @@ export function DashboardView({
           Set up your regimen to see totals here.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div
+          className={cn(
+            "overflow-x-auto rounded-lg border",
+            // Tighten cell padding and shrink text when compact is on.
+            compact &&
+              "text-xs [&_td]:px-2 [&_td]:py-0.5 [&_th]:px-2 [&_th]:py-1 [&_svg]:size-3",
+          )}
+        >
           <Table>
             <TableHeader>
               <TableRow>

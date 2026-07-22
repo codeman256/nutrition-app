@@ -68,8 +68,9 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 - [x] **D4 — Source citations for status.** "300% over limit on B3 — says
   who?" Each nutrient name links to its NIH fact sheet.
 - [x] **D5 — Show % Daily Value** column alongside % target (was F1).
-- [y] **D6 — Density at scale.** Fine at 6 products; plan for a compact mode
-  as the grid grows.
+- [x] **D6 — Density at scale.** A "Compact" toggle in the dashboard toolbar
+  tightens cell padding, text and icon size so a grid with many products/
+  nutrients stays scannable.
 - [x] **D8 — Per-form sub-rows for vitamins A/E.** When two or more forms
   contribute (e.g. Centrum's retinyl + β-carotene), the nutrient row now shows
   an indented "└─ Beta-carotene / └─ Retinol" sub-line per form with its own
