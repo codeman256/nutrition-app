@@ -45,12 +45,16 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   20 mcg D = 800 IU, 18 mg dl-α E = 40 IU).
 - [y] **C2 — DSLD multi-serving labels.** Import uses the first quantity row
   per ingredient; multi-serving-column labels may mis-import.
-- [y] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
-  is in folic-acid mcg (×1.0). We compare to the UL 1:1 (safety-correct);
-  document this and add a tip rather than double-count.
-- [y] **C4 — Unit & acronym education.** On-site tips/definitions: mcg vs mg,
-  IU, RAE, DFE, RDA, AI, UL, DV — hover definitions for acronyms, and inline
-  help on the product form for tricky rows (vitamin A, D, E, folate).
+- [x] **C3 — Folate DFE / folic acid.** RDA is in DFE (folic acid ×1.7), UL
+  is in folic-acid mcg (×1.0). We compare to the UL 1:1 (safety-correct). The
+  folate row's product-form `note` explains DFE and that %target is slightly
+  conservative; the dashboard limit cell carries an info tooltip (`limitNote`)
+  saying the UL is for synthetic folic acid, not food folate.
+- [x] **C4 — Unit & acronym education.** Column headers carry hover
+  definitions (RDA/AI/UL/DV/Unit); the product form has inline `note` help on
+  tricky rows (vitamin A, D, E, folate); and the dashboard now has a
+  collapsible "Units & abbreviations" glossary defining mcg, mg, IU, RAE, DFE,
+  RDA, AI, UL and DV in plain language.
 
 ## Dashboard
 
@@ -82,11 +86,14 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
 
 ## Products
 
-- [y] **P1 — Pill/bottle colour options** per product (a few preset colours
-  as an alternative to the 💊 default / uploaded photo).
-- [y] **P2 — Barcode → no nutrients (Centrum via OFF).** Open Food Facts
-  returned the product but no amounts; NPN import worked. When a UPC hit has
-  zero usable ingredients, tell the user and nudge toward NPN/label/manual.
+- [x] **P1 — Pill designer** per product: shapes (capsule/caplet/round/
+  softgel), sizes, an 11-colour palette on the pill itself, and a second
+  colour for the other capsule half. Stored as JSON (`pill_style`); legacy
+  `pill_color` maps forward. Shown wherever a product has no photo.
+- [x] **P2 — Barcode → no nutrients (Centrum via OFF).** A UPC hit with zero
+  usable ingredients no longer drops the user into an empty form — it offers to
+  hand the found name to the NPN/name search (prefilled and run) or continue
+  manually.
 - [x] **F5 — OCR preprocessing.** Grayscale → **Otsu binarization** (was a
   contrast stretch), higher working resolution (2600 px), and
   `preserve_interword_spaces` so the name↔amount split survives the dot
@@ -120,6 +127,9 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   POST starts it and returns immediately; GET reports live row count.
 - [x] **R5 — Backup story** — README "Backup & restore" section + the A1
   in-browser flow.
+- [y] the first logged in user should be marked as admin in database and be the admin.
+  only the admin should see the admin page. there can be multi admins if i
+  were to manually modify records in db.
 
 ## Ops & quality
 
@@ -136,6 +146,7 @@ How to use this file: tell Claude (or open a PR) referencing an item's ID.
   `test.env`, deleted by a globalSetup) so `npm test` no longer clears the
   developer's downloaded ~300k-row index.
 - [ ] **Q2 — Automated axe/Lighthouse a11y pass** in CI.
+- [y] add user details to the profile page so user can change their name, email, etc.
 
 ## Done
 

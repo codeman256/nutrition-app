@@ -114,6 +114,37 @@ function describeOverUl(row: NutrientRow, mode: UnitMode): string {
 
 const NONE = "__none__";
 
+/** Plain-language definitions for the units and acronyms used on the grid (C4). */
+const GLOSSARY: [string, string][] = [
+  ["mcg", "Microgram (µg) — one-millionth of a gram. 1,000 mcg = 1 mg."],
+  ["mg", "Milligram — one-thousandth of a gram."],
+  [
+    "IU",
+    "International Unit — a measure of biological activity used for vitamins A, D and E. Its metric equivalent depends on the form.",
+  ],
+  [
+    "RAE",
+    "Retinol Activity Equivalents — the standard unit for vitamin A; it accounts for how well each form (retinol vs beta-carotene) converts.",
+  ],
+  [
+    "DFE",
+    "Dietary Folate Equivalents — the standard unit for folate; folic acid counts as 1.7× the folate found in food.",
+  ],
+  [
+    "RDA",
+    "Recommended Dietary Allowance — the daily amount that meets the needs of nearly all healthy people.",
+  ],
+  ["AI", "Adequate Intake — used when there isn't enough evidence to set an RDA."],
+  [
+    "UL",
+    "Tolerable Upper Intake Level — the highest daily amount unlikely to cause harm.",
+  ],
+  [
+    "DV",
+    "Daily Value — the single reference number printed on supplement labels; not age- or sex-specific.",
+  ],
+];
+
 export function DashboardView({
   products,
   regimen,
@@ -490,6 +521,20 @@ export function DashboardView({
           <> Sodium&apos;s limit is the CDRR guideline.</>
         )}
       </p>
+
+      <details className="rounded-lg border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">
+          Units &amp; abbreviations
+        </summary>
+        <dl className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2 [&_dt]:font-medium">
+          {GLOSSARY.map(([term, def]) => (
+            <div key={term} className="flex flex-col">
+              <dt>{term}</dt>
+              <dd className="text-muted-foreground">{def}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
 
       {/* What-if — moved to the bottom (D2) */}
       <div className="mt-2 flex flex-col gap-3 rounded-lg border p-4">
