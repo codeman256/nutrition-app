@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import type { ProductDraft, SearchHit } from "@/lib/lookup/types";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
 const EMPTY_DRAFT: ProductDraft = {
   name: "",
@@ -29,6 +30,37 @@ export function AddProductFlow({
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [tab, setTab] = useState("search");
   const [searchSeed, setSearchSeed] = useState("");
+  // Remount the form per draft so its initial state is fresh.
+  const formKey = useRef(0);
+  // Where the user was in the results when they opened the form, to restore.
+  const scrollRef = useRef(0);
+
+  /**
+   * Open the product form. The tabs stay mounted (hidden) so the search
+   * results, query and scroll survive — the user can go back to exactly where
+   * they were. A history entry makes the browser Back button return here too.
+   */
+  function openDraft(d: ProductDraft) {
+    scrollRef.current = window.scrollY;
+    formKey.current += 1;
+    window.history.pushState({ vitaplanForm: true }, "");
+    setDraft(d);
+    window.scrollTo(0, 0);
+  }
+
+  // Back button (or "Start over", which calls history.back()) returns to search.
+  useEffect(() => {
+    const onPop = () => setDraft(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // When we return to the tabs, restore the previous scroll position.
+  useEffect(() => {
+    if (draft === null && scrollRef.current > 0) {
+      requestAnimationFrame(() => window.scrollTo(0, scrollRef.current));
+    }
+  }, [draft]);
 
   /**
    * A barcode that resolves to a product with no ingredient amounts is a dead
@@ -40,56 +72,64 @@ export function AddProductFlow({
     setTab("search");
   }
 
-  if (draft) {
-    return (
-      <div className="flex flex-col gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="self-start"
-          onClick={() => setDraft(null)}
-        >
-          ← Start over
-        </Button>
-        <ProductForm draft={draft} />
-      </div>
-    );
-  }
-
   return (
-    <Tabs value={tab} onValueChange={setTab} className="max-w-2xl">
-      <TabsList className="grid w-full grid-cols-4">
-        {/* Search leads: an NPN is legally required on every Canadian bottle,
-            whereas barcode data is crowd-sourced and often empty. */}
-        <TabsTrigger value="search">
-          {region === "CA" ? "NPN / name" : "Search"}
-        </TabsTrigger>
-        <TabsTrigger value="upc">Barcode</TabsTrigger>
-        <TabsTrigger value="photo">Label photo</TabsTrigger>
-        <TabsTrigger value="manual">Manual</TabsTrigger>
-      </TabsList>
-      <TabsContent value="search" className="pt-4">
-        <SearchTab
-          region={region}
-          lnhpdSynced={lnhpdSynced}
-          onDraft={setDraft}
-          seed={searchSeed}
-        />
-      </TabsContent>
-      <TabsContent value="upc" className="pt-4">
-        <UpcTab onDraft={setDraft} onSearchInstead={handoffToSearch} />
-      </TabsContent>
-      <TabsContent value="photo" className="pt-4">
-        <PhotoTab onDraft={setDraft} />
-      </TabsContent>
-      <TabsContent value="manual" className="pt-4">
-        <p className="mb-4 text-sm text-muted-foreground">
-          Type the label in yourself — ingredient names auto-match to tracked
-          nutrients as you type.
-        </p>
-        <Button onClick={() => setDraft(EMPTY_DRAFT)}>Start blank product</Button>
-      </TabsContent>
-    </Tabs>
+    <>
+      {/* Kept mounted (just hidden) while the form is open, so search results
+          and scroll position are preserved on Start over / Back. */}
+      <Tabs
+        value={tab}
+        onValueChange={setTab}
+        className={cn("max-w-2xl", draft && "hidden")}
+      >
+        <TabsList className="grid w-full grid-cols-4">
+          {/* Search leads: an NPN is legally required on every Canadian bottle,
+              whereas barcode data is crowd-sourced and often empty. */}
+          <TabsTrigger value="search">
+            {region === "CA" ? "NPN / name" : "Search"}
+          </TabsTrigger>
+          <TabsTrigger value="upc">Barcode</TabsTrigger>
+          <TabsTrigger value="photo">Label photo</TabsTrigger>
+          <TabsTrigger value="manual">Manual</TabsTrigger>
+        </TabsList>
+        <TabsContent value="search" className="pt-4">
+          <SearchTab
+            region={region}
+            lnhpdSynced={lnhpdSynced}
+            onDraft={openDraft}
+            seed={searchSeed}
+          />
+        </TabsContent>
+        <TabsContent value="upc" className="pt-4">
+          <UpcTab onDraft={openDraft} onSearchInstead={handoffToSearch} />
+        </TabsContent>
+        <TabsContent value="photo" className="pt-4">
+          <PhotoTab onDraft={openDraft} />
+        </TabsContent>
+        <TabsContent value="manual" className="pt-4">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Type the label in yourself — ingredient names auto-match to tracked
+            nutrients as you type.
+          </p>
+          <Button onClick={() => openDraft(EMPTY_DRAFT)}>
+            Start blank product
+          </Button>
+        </TabsContent>
+      </Tabs>
+
+      {draft && (
+        <div className="flex flex-col gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-start"
+            onClick={() => window.history.back()}
+          >
+            ← Start over
+          </Button>
+          <ProductForm key={formKey.current} draft={draft} />
+        </div>
+      )}
+    </>
   );
 }
 
