@@ -58,7 +58,7 @@ export default async function ProductsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Products</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            The bottles you have on hand.
+            The containers you have on hand.
           </p>
         </div>
         <Button asChild className="gap-1">
@@ -70,7 +70,7 @@ export default async function ProductsPage() {
 
       {list.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No products yet. Add your first bottle by barcode, search, label
+          No products yet. Add your first product by barcode, search, label
           photo, or manual entry.
         </div>
       ) : (

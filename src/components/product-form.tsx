@@ -258,7 +258,7 @@ export function ProductForm({
           the right — pick either. A photo, if added, is shown instead. */}
       <div className="grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="p-photo">Photo of your bottle</Label>
+          <Label htmlFor="p-photo">Photo of your container</Label>
           <p className="text-xs text-muted-foreground">
             Upload your own photo. If you add one it&apos;s shown instead of the
             pill.
@@ -397,7 +397,7 @@ export function ProductForm({
           <div
             className="grid grid-cols-[1fr_5.5rem_5rem_auto] items-end gap-2 sm:grid-cols-[1fr_11rem_6rem_5.5rem_auto]"
           >
-            <div className="flex flex-col gap-1">
+            <div className="col-span-full flex flex-col gap-1 sm:col-span-1">
               <Label htmlFor={`ing-label-${i}`} className="text-xs">
                 Label name
               </Label>
